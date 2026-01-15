@@ -10,7 +10,7 @@ def _():
 
     import matplotlib.pyplot as plt
     import numpy as np
-    import polars
+    import polars as pl
     import seaborn as sns
     import statsmodels.formula.api as smf
     return np, plt, sns
@@ -76,37 +76,6 @@ def _(np, plt, sns):
 
 
 @app.cell
-def _():
-    # m_hat = 0
-    # b_hat = y.min()
-
-    # y_hat = m_hat*x + b_hat
-    # sse = ((y - y_hat)**2).sum()
-    # best_sse = sse
-
-    # neighbor_min_sse = -np.inf
-    # while neighbor_min_sse < best_sse:
-    #     neighbor_m_array = m_hat + neighbor_m_values
-    #     neighbor_b_array = b_hat + neighbor_b_values
-
-    #     neighbor_predictions = (
-    #         neighbor_m_array.reshape(-1, 1) * x 
-    #         + neighbor_b_array.reshape(-1, 1)
-    #     )
-
-    #     neighbor_errors = y.reshape(1, -1) - neighbor_predictions
-    #     neighbor_squared_errors = neighbor_errors**2
-    #     neighbor_sse = neighbor_squared_errors.sum(axis=1)
-    #     neighbor_min_sse = neighbor_sse.min()
-    #     if  neighbor_min_sse < best_sse:
-    #         min_index = np.argmin(neighbor_sse)
-    #         m_hat = neighbor_m_array[min_index]
-    #         b_hat = neighbor_b_array[min_index]
-    #         best_sse = neighbor_min_sse
-    return
-
-
-@app.cell
 def _(neighbor_b_values, neighbor_m_values, np, x, y):
     m_hat = 0
     b_hat = y.min()
@@ -115,9 +84,8 @@ def _(neighbor_b_values, neighbor_m_values, np, x, y):
     sse = ((y - y_hat)**2).sum()
     best_sse = sse
 
-    improvements_made = True
-    while improvements_made:
-        improvements_made = False
+    neighbor_min_sse = -np.inf
+    while neighbor_min_sse < best_sse:
         neighbor_m_array = m_hat + neighbor_m_values
         neighbor_b_array = b_hat + neighbor_b_values
 
@@ -131,7 +99,6 @@ def _(neighbor_b_values, neighbor_m_values, np, x, y):
         neighbor_sse = neighbor_squared_errors.sum(axis=1)
         neighbor_min_sse = neighbor_sse.min()
         if  neighbor_min_sse < best_sse:
-            improvements_made = True
             min_index = np.argmin(neighbor_sse)
             m_hat = neighbor_m_array[min_index]
             b_hat = neighbor_b_array[min_index]
@@ -140,6 +107,43 @@ def _(neighbor_b_values, neighbor_m_values, np, x, y):
     print(f' - {m_hat = :.3f}')
     print(f' - {b_hat = :.3f}')
     print(f' - {best_sse = :.3f}')
+    return
+
+
+@app.cell
+def _():
+    # m_hat = 0
+    # b_hat = y.min()
+
+    # y_hat = m_hat*x + b_hat
+    # sse = ((y - y_hat)**2).sum()
+    # best_sse = sse
+
+    # improvements_made = True
+    # while improvements_made:
+    #     improvements_made = False
+    #     neighbor_m_array = m_hat + neighbor_m_values
+    #     neighbor_b_array = b_hat + neighbor_b_values
+
+    #     neighbor_predictions = (
+    #         neighbor_m_array.reshape(-1, 1) * x 
+    #         + neighbor_b_array.reshape(-1, 1)
+    #     )
+
+    #     neighbor_errors = y.reshape(1, -1) - neighbor_predictions
+    #     neighbor_squared_errors = neighbor_errors**2
+    #     neighbor_sse = neighbor_squared_errors.sum(axis=1)
+    #     neighbor_min_sse = neighbor_sse.min()
+    #     if  neighbor_min_sse < best_sse:
+    #         improvements_made = True
+    #         min_index = np.argmin(neighbor_sse)
+    #         m_hat = neighbor_m_array[min_index]
+    #         b_hat = neighbor_b_array[min_index]
+    #         best_sse = neighbor_min_sse
+
+    # print(f' - {m_hat = :.3f}')
+    # print(f' - {b_hat = :.3f}')
+    # print(f' - {best_sse = :.3f}')
     return
 
 
