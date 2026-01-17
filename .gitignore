@@ -1,6 +1,8 @@
 *__marimo__/
 *__pycache__/
 
+progress.txt
+
 # pixi environments
 .pixi/*
 !.pixi/config.toml
