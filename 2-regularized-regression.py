@@ -13,11 +13,10 @@ def _():
     import polars as pl
     import seaborn as sns
     import statsmodels.api as sm
-    from sklearn.model_selection import KFold, cross_val_score
-    from sklearn.preprocessing import StandardScaler
+    from sklearn.model_selection import KFold
 
     sns.set_style("whitegrid")
-    return KFold, StandardScaler, cross_val_score, mo, np, pl, plt, sm, sns
+    return KFold, mo, np, pl, plt, sm, sns
 
 
 @app.cell(hide_code=True)
@@ -114,52 +113,94 @@ def _(pl):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    ## Feature Selection
+    ## Feature Preparation
 
-    For clarity, we select a subset of numeric features that are commonly important
-    predictors of house price. We avoid categorical features to keep the focus on
-    regularization concepts.
+    To better demonstrate regularization benefits, we use **all available features** from the
+    Ames Housing dataset, including both numeric and categorical variables. This creates a
+    high-dimensional scenario (~250 features) where regularization clearly outperforms OLS.
 
-    **Selected features:**
-    - `GrLivArea`: Above grade living area (sq ft)
-    - `TotalBsmtSF`: Total basement area (sq ft)
-    - `OverallQual`: Overall material and finish quality (1-10)
-    - `GarageCars`: Garage capacity in cars
-    - `GarageArea`: Garage size (sq ft)
-    - `1stFlrSF`: First floor area (sq ft)
-    - `FullBath`: Number of full bathrooms
-    - `YearBuilt`: Year of construction
-    - `YearRemodAdd`: Year of remodel (same as construction if none)
-    - `TotRmsAbvGrd`: Total rooms above grade (excludes bathrooms)
-    - `Fireplaces`: Number of fireplaces
-    - `LotArea`: Lot size (sq ft)
+    **Preprocessing steps:**
+    1. Drop columns with >50% missing values (PoolQC, MiscFeature, Alley, Fence, FireplaceQu)
+    2. Drop the Id column
+    3. Impute remaining missing values (median for numeric, mode for categorical)
+    4. One-hot encode all categorical columns (drop first category to avoid collinearity)
+
+    This results in approximately 250 features with ~1,168 training samples—a ~5:1 sample-to-feature
+    ratio where regularization provides clear benefits.
     """)
     return
 
 
 @app.cell
-def _(raw_data):
-    feature_columns = [
-        "GrLivArea",
-        "TotalBsmtSF",
-        "OverallQual",
-        "GarageCars",
-        "GarageArea",
-        "1stFlrSF",
-        "FullBath",
-        "YearBuilt",
-        "YearRemodAdd",
-        "TotRmsAbvGrd",
-        "Fireplaces",
-        "LotArea",
+def _(pl, raw_data):
+    # Identify columns to drop (>50% missing)
+    _missing_pct = raw_data.null_count() / len(raw_data)
+    _cols_to_drop = [
+        col for col in raw_data.columns
+        if _missing_pct[col][0] > 0.5
+    ]
+
+    # Also drop Id column
+    _cols_to_drop.append("Id")
+
+    _data = raw_data.drop(_cols_to_drop)
+
+    # Separate numeric and categorical columns
+    numeric_cols = [
+        col for col in _data.columns
+        if _data[col].dtype in [pl.Float64, pl.Int64] and col != "SalePrice"
+    ]
+    categorical_cols = [
+        col for col in _data.columns
+        if _data[col].dtype == pl.String
     ]
     target_column = "SalePrice"
 
-    # Select features and target, drop rows with any missing values
-    model_data = raw_data.select(feature_columns + [target_column]).drop_nulls()
-    print(f"Samples after removing nulls: {model_data.shape[0]}")
-    model_data.head()
-    return feature_columns, model_data, target_column
+    print(f"Numeric features: {len(numeric_cols)}")
+    print(f"Categorical features: {len(categorical_cols)}")
+    print(f"Dropped columns (>50% missing): {_cols_to_drop}")
+    return categorical_cols, numeric_cols, target_column
+
+
+@app.cell
+def _(categorical_cols, numeric_cols, pl, raw_data, target_column):
+    # Drop high-missing columns and Id
+    _missing_pct = raw_data.null_count() / len(raw_data)
+    _cols_to_drop = [
+        col for col in raw_data.columns
+        if _missing_pct[col][0] > 0.5
+    ]
+    _cols_to_drop.append("Id")
+    _data = raw_data.drop(_cols_to_drop)
+
+    # Impute missing values
+    # Numeric: fill with median
+    _numeric_imputed = _data.select(
+        [pl.col(c).fill_null(pl.col(c).median()) for c in numeric_cols]
+    )
+
+    # Categorical: fill with mode (most frequent), then one-hot encode
+    _cat_imputed = _data.select(
+        [pl.col(c).fill_null(pl.col(c).mode().first()) for c in categorical_cols]
+    )
+
+    # One-hot encode categoricals (creates dummy columns)
+    _cat_dummies = _cat_imputed.to_dummies(
+        columns=categorical_cols,
+        drop_first=True,
+    )
+
+    # Combine all features
+    model_data = pl.concat(
+        [_numeric_imputed, _cat_dummies, _data.select(target_column)],
+        how="horizontal",
+    )
+
+    feature_columns = [c for c in model_data.columns if c != target_column]
+
+    print(f"Total features after encoding: {len(feature_columns)}")
+    print(f"Samples: {len(model_data)}")
+    return feature_columns, model_data
 
 
 @app.cell(hide_code=True)
@@ -180,53 +221,65 @@ def _(mo):
 
 
 @app.cell
-def _(StandardScaler, feature_columns, model_data, np, target_column):
-    # Extract feature matrix and target
-    X_raw = model_data.select(feature_columns).to_numpy()
-    y = model_data.select(target_column).to_numpy().flatten()
+def _(feature_columns, model_data, np, pl, target_column):
+    # Add row index for train/test split tracking
+    _model_data_indexed = model_data.with_row_index("row_idx")
 
-    # Train/test split (manual to keep it simple and reproducible)
+    # Train/test split using polars
     np.random.seed(42)
-    n_samples = len(y)
-    n_train = int(0.8 * n_samples)
-    _indices = np.random.permutation(n_samples)
-    train_idx = _indices[:n_train]
-    test_idx = _indices[n_train:]
+    train_data = _model_data_indexed.sample(
+        fraction=0.8,
+        seed=42,
+        shuffle=True,
+    )
+    test_data = _model_data_indexed.join(
+        train_data,
+        on="row_idx",
+        how="anti",
+    )
 
-    X_train_raw = X_raw[train_idx]
-    X_test_raw = X_raw[test_idx]
-    y_train = y[train_idx]
-    y_test = y[test_idx]
+    # Calculate standardization parameters from training data
+    _train_means = train_data.select(feature_columns).mean()
+    _train_stds = train_data.select(feature_columns).std()
 
-    # Standardize features (fit on training data only)
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train_raw)
-    X_test_scaled = scaler.transform(X_test_raw)
+    # Identify columns with zero or very small std (drop these)
+    _valid_cols = [
+        col for col in feature_columns
+        if _train_stds[col][0] is not None and _train_stds[col][0] > 1e-10
+    ]
+    _dropped_cols = set(feature_columns) - set(_valid_cols)
+    if _dropped_cols:
+        print(f"Dropped {len(_dropped_cols)} constant columns")
 
-    # Add constant term for statsmodels
-    X_train = np.column_stack([np.ones(len(X_train_scaled)), X_train_scaled])
-    X_test = np.column_stack([np.ones(len(X_test_scaled)), X_test_scaled])
+    # Standardize features using polars expressions
+    _standardize_exprs = [
+        ((pl.col(col) - _train_means[col][0]) / _train_stds[col][0]).alias(col)
+        for col in _valid_cols
+    ]
+
+    _train_scaled = train_data.select(_standardize_exprs)
+    _test_scaled = test_data.select(_standardize_exprs)
+
+    # Add intercept column (1.0 for all rows)
+    _train_scaled = _train_scaled.with_columns(pl.lit(1.0).alias("intercept"))
+    _test_scaled = _test_scaled.with_columns(pl.lit(1.0).alias("intercept"))
+
+    # Reorder columns: intercept first, then features
+    _col_order = ["intercept"] + _valid_cols
+
+    # Extract numpy arrays for statsmodels
+    X_train = _train_scaled.select(_col_order).to_numpy()
+    X_test = _test_scaled.select(_col_order).to_numpy()
+    y_train = train_data.select(target_column).to_numpy().flatten()
+    y_test = test_data.select(target_column).to_numpy().flatten()
+
+    # Update feature_columns to only include valid columns
+    feature_columns_final = _valid_cols
 
     print(f"Training samples: {len(y_train)}")
     print(f"Test samples: {len(y_test)}")
     print(f"Features (including intercept): {X_train.shape[1]}")
-    return (
-        X_raw,
-        X_test,
-        X_test_raw,
-        X_test_scaled,
-        X_train,
-        X_train_raw,
-        X_train_scaled,
-        n_samples,
-        n_train,
-        scaler,
-        test_idx,
-        train_idx,
-        y,
-        y_test,
-        y_train,
-    )
+    return X_test, X_train, feature_columns_final, y_test, y_train
 
 
 @app.cell(hide_code=True)
@@ -242,19 +295,21 @@ def _(mo):
 
 
 @app.cell
-def _(X_train, feature_columns, sm, y_train):
+def _(X_train, feature_columns_final, sm, y_train):
     # Fit OLS model
     ols_model = sm.OLS(
         endog=y_train,
         exog=X_train,
     ).fit()
 
-    # Display summary
-    print(ols_model.summary())
+    # Display summary (truncated for high-dimensional data)
+    print(f"OLS R² (training): {ols_model.rsquared:.4f}")
+    print(f"OLS Adjusted R² (training): {ols_model.rsquared_adj:.4f}")
+    print(f"Number of coefficients: {len(ols_model.params)}")
 
     # Extract coefficients (skip intercept for feature comparison)
-    ols_coefs = dict(zip(feature_columns, ols_model.params[1:]))
-    return ols_coefs, ols_model
+    ols_coefs = dict(zip(feature_columns_final, ols_model.params[1:]))
+    return (ols_model,)
 
 
 @app.cell
@@ -270,7 +325,7 @@ def _(X_test, np, ols_model, y_test):
     print(f"OLS Test Performance:")
     print(f"  RMSE: ${ols_rmse:,.0f}")
     print(f"  R²: {ols_r2:.4f}")
-    return ols_mse, ols_predictions, ols_r2, ols_rmse
+    return
 
 
 @app.cell(hide_code=True)
@@ -291,12 +346,10 @@ def _(mo):
 
 
 @app.cell
-def _(X_train, feature_columns, sm, y_train):
+def _(X_train, feature_columns_final, np, sm, y_train):
     # Test different alpha values for Ridge
     # Note: statsmodels alpha values need to be small relative to data scale
     ridge_alphas = [0.0001, 0.001, 0.005, 0.01, 0.05]
-
-    # Store coefficients for each alpha
     ridge_coefs_by_alpha = {}
 
     for _alpha in ridge_alphas:
@@ -310,24 +363,21 @@ def _(X_train, feature_columns, sm, y_train):
         )
         ridge_coefs_by_alpha[_alpha] = _fit.params[1:]  # Skip intercept
 
-    # Display coefficient comparison
-    print("Ridge Coefficients by Alpha:")
-    print("-" * 85)
-    print(f"{'Feature':<15}", end="")
+    # Display summary statistics for high-dimensional data
+    print("Ridge Coefficient Summary by Alpha:")
+    print("-" * 75)
+    print(f"{'Alpha':<12} {'Mean |Coef|':<15} {'Max |Coef|':<15} {'Min |Coef|':<15}")
+    print("-" * 75)
+
     for _alpha in ridge_alphas:
-        print(f"{_alpha:>14}", end="")
-    print()
-    print("-" * 85)
-    for _i, _feat in enumerate(feature_columns):
-        print(f"{_feat:<15}", end="")
-        for _alpha in ridge_alphas:
-            print(f"{ridge_coefs_by_alpha[_alpha][_i]:>14.0f}", end="")
-        print()
+        _coefs = ridge_coefs_by_alpha[_alpha]
+        _abs_coefs = np.abs(_coefs)
+        print(f"{_alpha:<12} {np.mean(_abs_coefs):<15.2f} {np.max(_abs_coefs):<15.2f} {np.min(_abs_coefs):<15.4f}")
 
     # Select moderate alpha for comparison
     ridge_alpha_default = 0.001
-    ridge_coefs = dict(zip(feature_columns, ridge_coefs_by_alpha[ridge_alpha_default]))
-    return ridge_alpha_default, ridge_alphas, ridge_coefs, ridge_coefs_by_alpha
+    ridge_coefs = dict(zip(feature_columns_final, ridge_coefs_by_alpha[ridge_alpha_default]))
+    return (ridge_alpha_default,)
 
 
 @app.cell
@@ -351,7 +401,7 @@ def _(X_test, X_train, np, ridge_alpha_default, sm, y_test, y_train):
     print(f"Ridge (alpha={ridge_alpha_default}) Test Performance:")
     print(f"  RMSE: ${ridge_rmse:,.0f}")
     print(f"  R²: {ridge_r2:.4f}")
-    return ridge_model, ridge_mse, ridge_predictions, ridge_r2, ridge_rmse
+    return
 
 
 @app.cell(hide_code=True)
@@ -372,12 +422,10 @@ def _(mo):
 
 
 @app.cell
-def _(X_train, feature_columns, sm, y_train):
+def _(X_train, feature_columns_final, np, sm, y_train):
     # Test different alpha values for Lasso
     # Larger alphas needed to see feature selection effect
     lasso_alphas = [1, 10, 50, 100, 500]
-
-    # Store coefficients for each alpha
     lasso_coefs_by_alpha = {}
 
     for _alpha in lasso_alphas:
@@ -391,36 +439,25 @@ def _(X_train, feature_columns, sm, y_train):
         )
         lasso_coefs_by_alpha[_alpha] = _fit.params[1:]  # Skip intercept
 
-    # Display coefficient comparison
-    print("Lasso Coefficients by Alpha (notice zeros appearing as alpha increases):")
-    print("-" * 85)
-    print(f"{'Feature':<15}", end="")
-    for _alpha in lasso_alphas:
-        print(f"{_alpha:>14}", end="")
-    print()
-    print("-" * 85)
-    for _i, _feat in enumerate(feature_columns):
-        print(f"{_feat:<15}", end="")
-        for _alpha in lasso_alphas:
-            _coef = lasso_coefs_by_alpha[_alpha][_i]
-            if abs(_coef) < 1:
-                print(f"{'0':>14}", end="")  # Show zeros clearly
-            else:
-                print(f"{_coef:>14.0f}", end="")
-        print()
+    # Display summary showing feature selection effect
+    print("Lasso Feature Selection by Alpha:")
+    print("-" * 80)
+    print(f"{'Alpha':<12} {'# Non-zero':<15} {'# Zeroed':<15} {'Mean |Non-zero|':<20}")
+    print("-" * 80)
 
-    # Count zeros for each alpha
-    print("-" * 85)
-    print(f"{'# Zeros':<15}", end="")
     for _alpha in lasso_alphas:
-        _n_zeros = sum(abs(_c) < 1 for _c in lasso_coefs_by_alpha[_alpha])
-        print(f"{_n_zeros:>14}", end="")
-    print()
+        _coefs = lasso_coefs_by_alpha[_alpha]
+        _n_nonzero = sum(abs(_c) >= 1 for _c in _coefs)
+        _n_zeros = len(_coefs) - _n_nonzero
+        _nonzero_mean = np.mean([abs(_c) for _c in _coefs if abs(_c) >= 1]) if _n_nonzero > 0 else 0
+        print(f"{_alpha:<12} {_n_nonzero:<15} {_n_zeros:<15} {_nonzero_mean:<20.2f}")
+
+    print(f"\nTotal features: {len(feature_columns_final)}")
 
     # Select moderate alpha for comparison (shows some feature selection)
     lasso_alpha_default = 50
-    lasso_coefs = dict(zip(feature_columns, lasso_coefs_by_alpha[lasso_alpha_default]))
-    return lasso_alpha_default, lasso_alphas, lasso_coefs, lasso_coefs_by_alpha
+    lasso_coefs = dict(zip(feature_columns_final, lasso_coefs_by_alpha[lasso_alpha_default]))
+    return (lasso_alpha_default,)
 
 
 @app.cell
@@ -444,7 +481,7 @@ def _(X_test, X_train, lasso_alpha_default, np, sm, y_test, y_train):
     print(f"Lasso (alpha={lasso_alpha_default}) Test Performance:")
     print(f"  RMSE: ${lasso_rmse:,.0f}")
     print(f"  R²: {lasso_r2:.4f}")
-    return lasso_model, lasso_mse, lasso_predictions, lasso_r2, lasso_rmse
+    return
 
 
 @app.cell(hide_code=True)
@@ -467,7 +504,7 @@ def _(mo):
 
 
 @app.cell
-def _(X_train, feature_columns, sm, y_train):
+def _(X_train, feature_columns_final, np, sm, y_train):
     # Test different L1_wt values with moderate alpha
     # Note: Alpha needs to be smaller to show useful coefficients across L1_wt range
     enet_alpha = 0.01
@@ -487,29 +524,24 @@ def _(X_train, feature_columns, sm, y_train):
         )
         enet_coefs_by_l1wt[_l1wt] = _fit.params[1:]  # Skip intercept
 
-    # Display coefficient comparison
-    print(f"Elastic Net Coefficients by L1_wt (alpha={enet_alpha}):")
-    print(f"(L1_wt=0 is Ridge, L1_wt=1 is Lasso)")
-    print("-" * 85)
-    print(f"{'Feature':<15}", end="")
+    # Display summary showing how L1_wt affects sparsity
+    print(f"Elastic Net: Effect of L1_wt (alpha={enet_alpha}):")
+    print("(L1_wt=0 is Ridge, L1_wt=1 is Lasso)")
+    print("-" * 75)
+    print(f"{'L1_wt':<12} {'# Non-zero':<15} {'# Zeroed':<15} {'Mean |Coef|':<15}")
+    print("-" * 75)
+
     for _l1wt in enet_l1_weights:
-        print(f"{_l1wt:>14}", end="")
-    print()
-    print("-" * 85)
-    for _i, _feat in enumerate(feature_columns):
-        print(f"{_feat:<15}", end="")
-        for _l1wt in enet_l1_weights:
-            _coef = enet_coefs_by_l1wt[_l1wt][_i]
-            if abs(_coef) < 1:
-                print(f"{'0':>14}", end="")
-            else:
-                print(f"{_coef:>14.0f}", end="")
-        print()
+        _coefs = enet_coefs_by_l1wt[_l1wt]
+        _n_nonzero = sum(abs(_c) >= 1 for _c in _coefs)
+        _n_zeros = len(_coefs) - _n_nonzero
+        _mean_abs = np.mean(np.abs(_coefs))
+        print(f"{_l1wt:<12} {_n_nonzero:<15} {_n_zeros:<15} {_mean_abs:<15.2f}")
 
     # Select L1_wt=0.5 for comparison
     enet_l1wt_default = 0.5
-    enet_coefs = dict(zip(feature_columns, enet_coefs_by_l1wt[enet_l1wt_default]))
-    return enet_alpha, enet_coefs, enet_coefs_by_l1wt, enet_l1_weights, enet_l1wt_default
+    enet_coefs = dict(zip(feature_columns_final, enet_coefs_by_l1wt[enet_l1wt_default]))
+    return enet_alpha, enet_l1wt_default
 
 
 @app.cell
@@ -533,7 +565,7 @@ def _(X_test, X_train, enet_alpha, enet_l1wt_default, np, sm, y_test, y_train):
     print(f"Elastic Net (alpha={enet_alpha}, L1_wt={enet_l1wt_default}) Test Performance:")
     print(f"  RMSE: ${enet_rmse:,.0f}")
     print(f"  R²: {enet_r2:.4f}")
-    return enet_model, enet_mse, enet_predictions, enet_r2, enet_rmse
+    return
 
 
 @app.cell(hide_code=True)
@@ -557,7 +589,7 @@ def _(mo):
 @app.cell
 def _(KFold, X_train, np, plt, sm, sns, y_train):
     # Cross-validation for Ridge
-    ridge_cv_alphas = np.logspace(-5, -1, 20)  # Range from 0.00001 to 0.1
+    ridge_cv_alphas = np.array([0.005, 0.01, 0.015, 0.02, 0.05])
     kfold = KFold(
         n_splits=5,
         shuffle=True,
@@ -567,12 +599,15 @@ def _(KFold, X_train, np, plt, sm, sns, y_train):
     ridge_cv_scores = []
     for _alpha in ridge_cv_alphas:
         _fold_scores = []
+
         for _train_idx, _val_idx in kfold.split(X_train):
+            # Extract fold data
             _X_tr = X_train[_train_idx]
             _X_val = X_train[_val_idx]
             _y_tr = y_train[_train_idx]
             _y_val = y_train[_val_idx]
 
+            # Fit model
             _model = sm.OLS(
                 endog=_y_tr,
                 exog=_X_tr,
@@ -580,9 +615,12 @@ def _(KFold, X_train, np, plt, sm, sns, y_train):
                 alpha=_alpha,
                 L1_wt=0,
             )
+
+            # Evaluate
             _pred = _model.predict(_X_val)
             _mse = np.mean((_y_val - _pred) ** 2)
             _fold_scores.append(_mse)
+
         ridge_cv_scores.append(np.mean(_fold_scores))
 
     ridge_cv_scores = np.array(ridge_cv_scores)
@@ -613,29 +651,26 @@ def _(KFold, X_train, np, plt, sm, sns, y_train):
 
     print(f"Best Ridge alpha: {ridge_best_alpha:.6f}")
     print(f"Best Ridge CV RMSE: ${ridge_best_cv_rmse:,.0f}")
-    return (
-        kfold,
-        ridge_best_alpha,
-        ridge_best_cv_rmse,
-        ridge_cv_alphas,
-        ridge_cv_scores,
-    )
+    return kfold, ridge_best_alpha
 
 
 @app.cell
 def _(X_train, kfold, np, plt, sm, sns, y_train):
     # Cross-validation for Lasso
-    lasso_cv_alphas = np.logspace(-1, 3, 20)  # Range from 0.1 to 1000
+    lasso_cv_alphas = np.array([100, 300, 600, 1000, 1500])
 
     lasso_cv_scores = []
     for _alpha in lasso_cv_alphas:
         _fold_scores = []
+
         for _train_idx, _val_idx in kfold.split(X_train):
+            # Extract fold data
             _X_tr = X_train[_train_idx]
             _X_val = X_train[_val_idx]
             _y_tr = y_train[_train_idx]
             _y_val = y_train[_val_idx]
 
+            # Fit model
             _model = sm.OLS(
                 endog=_y_tr,
                 exog=_X_tr,
@@ -643,9 +678,12 @@ def _(X_train, kfold, np, plt, sm, sns, y_train):
                 alpha=_alpha,
                 L1_wt=1,
             )
+
+            # Evaluate
             _pred = _model.predict(_X_val)
             _mse = np.mean((_y_val - _pred) ** 2)
             _fold_scores.append(_mse)
+
         lasso_cv_scores.append(np.mean(_fold_scores))
 
     lasso_cv_scores = np.array(lasso_cv_scores)
@@ -676,7 +714,7 @@ def _(X_train, kfold, np, plt, sm, sns, y_train):
 
     print(f"Best Lasso alpha: {lasso_best_alpha:.2f}")
     print(f"Best Lasso CV RMSE: ${lasso_best_cv_rmse:,.0f}")
-    return lasso_best_alpha, lasso_best_cv_rmse, lasso_cv_alphas, lasso_cv_scores
+    return (lasso_best_alpha,)
 
 
 @app.cell(hide_code=True)
@@ -695,7 +733,7 @@ def _(mo):
 def _(
     X_test,
     X_train,
-    feature_columns,
+    feature_columns_final,
     lasso_best_alpha,
     np,
     pl,
@@ -706,20 +744,24 @@ def _(
 ):
     # Fit final models with CV-selected alphas
     final_ols = sm.OLS(endog=y_train, exog=X_train).fit()
+
     final_ridge = sm.OLS(endog=y_train, exog=X_train).fit_regularized(
         alpha=ridge_best_alpha,
         L1_wt=0,
     )
+
     final_lasso = sm.OLS(endog=y_train, exog=X_train).fit_regularized(
         alpha=lasso_best_alpha,
         L1_wt=1,
     )
+
     final_enet = sm.OLS(endog=y_train, exog=X_train).fit_regularized(
         alpha=0.01,  # Using moderate alpha for elastic net
         L1_wt=0.5,
     )
 
     # Evaluate on test set
+    _n_features = len(feature_columns_final)
     _models = {
         "OLS": final_ols,
         "Ridge": final_ridge,
@@ -729,24 +771,27 @@ def _(
 
     results = []
     final_coefs = {}
+
     for _name, _model in _models.items():
         _pred = _model.predict(X_test)
         _mse = np.mean((y_test - _pred) ** 2)
         _rmse = np.sqrt(_mse)
         _r2 = 1 - np.sum((y_test - _pred) ** 2) / np.sum((y_test - np.mean(y_test)) ** 2)
         _n_zeros = sum(abs(_c) < 1 for _c in _model.params[1:])
+
         results.append({
             "Model": _name,
             "RMSE": _rmse,
             "R²": _r2,
-            "Non-zero Features": 12 - _n_zeros,
+            "Non-zero Features": _n_features - _n_zeros,
         })
-        final_coefs[_name] = dict(zip(feature_columns, _model.params[1:]))
+        final_coefs[_name] = dict(zip(feature_columns_final, _model.params[1:]))
 
     results_df = pl.DataFrame(results)
+
     print("Model Comparison on Test Set:")
     print(results_df)
-    return final_coefs, final_enet, final_lasso, final_ols, final_ridge, results_df
+    return (final_coefs,)
 
 
 @app.cell(hide_code=True)
@@ -754,109 +799,47 @@ def _(mo):
     mo.md(r"""
     ## Coefficient Comparison
 
-    Visualizing how each method affects the coefficient estimates helps understand
-    the regularization behavior.
+    With ~250 features, we visualize regularization effects using scatter plots comparing
+    OLS coefficients (x-axis) to regularized coefficients (y-axis). Points below the
+    diagonal line (y=x) indicate shrinkage toward zero.
     """)
     return
 
 
 @app.cell
-def _(feature_columns, final_coefs, np, plt, sns):
-    # Create coefficient comparison plot
-    _fig, _ax = plt.subplots(figsize=(12, 6))
+def _(feature_columns_final, final_coefs, np, plt):
+    _ols = np.array([final_coefs["OLS"][f] for f in feature_columns_final])
+    _ridge = np.array([final_coefs["Ridge"][f] for f in feature_columns_final])
+    _lasso = np.array([final_coefs["Lasso"][f] for f in feature_columns_final])
 
-    _x = np.arange(len(feature_columns))
-    _width = 0.2
-    _colors = sns.color_palette("husl", 4)
+    _fig, _axes = plt.subplots(nrows=1, ncols=2, figsize=(12, 5))
 
-    for _i, (_name, _coefs) in enumerate(final_coefs.items()):
-        _values = [_coefs[_f] for _f in feature_columns]
-        _ax.bar(
-            _x + _i * _width,
-            _values,
-            width=_width,
-            label=_name,
-            color=_colors[_i],
-            edgecolor="black",
-            linewidth=0.5,
-        )
+    # Ridge vs OLS
+    _axes[0].scatter(_ols, _ridge, alpha=0.6, edgecolor="black", linewidth=0.5)
+    _lim = max(abs(_ols).max(), abs(_ridge).max()) * 1.1
+    _axes[0].plot([-_lim, _lim], [-_lim, _lim], "k--", alpha=0.5, label="y = x (no shrinkage)")
+    _axes[0].set_xlim(-_lim, _lim)
+    _axes[0].set_ylim(-_lim, _lim)
+    _axes[0].set_xlabel("OLS Coefficient")
+    _axes[0].set_ylabel("Ridge Coefficient")
+    _axes[0].set_title("Ridge Shrinkage")
+    _axes[0].legend()
+    _axes[0].axhline(0, color="gray", linewidth=0.5)
+    _axes[0].axvline(0, color="gray", linewidth=0.5)
 
-    _ax.set_xlabel("Feature")
-    _ax.set_ylabel("Coefficient Value")
-    _ax.set_title("Coefficient Comparison Across Regularization Methods")
-    _ax.set_xticks(_x + _width * 1.5)
-    _ax.set_xticklabels(feature_columns, rotation=45, ha="right")
-    _ax.legend()
-    _ax.axhline(y=0, color="black", linestyle="-", linewidth=0.5)
-    plt.tight_layout()
-    plt.show()
-    return
+    # Lasso vs OLS
+    _n_zeroed = sum(abs(_lasso) < 1)
+    _axes[1].scatter(_ols, _lasso, alpha=0.6, edgecolor="black", linewidth=0.5)
+    _axes[1].plot([-_lim, _lim], [-_lim, _lim], "k--", alpha=0.5, label="y = x (no shrinkage)")
+    _axes[1].set_xlim(-_lim, _lim)
+    _axes[1].set_ylim(-_lim, _lim)
+    _axes[1].set_xlabel("OLS Coefficient")
+    _axes[1].set_ylabel("Lasso Coefficient")
+    _axes[1].set_title(f"Lasso Shrinkage ({_n_zeroed} features zeroed)")
+    _axes[1].legend()
+    _axes[1].axhline(0, color="gray", linewidth=0.5)
+    _axes[1].axvline(0, color="gray", linewidth=0.5)
 
-
-@app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""
-    ## Regularization Path
-
-    The regularization path shows how coefficients change as the penalty strength increases.
-    This visualization helps understand the shrinkage behavior of each method.
-    """)
-    return
-
-
-@app.cell
-def _(X_train, feature_columns, np, plt, sm, y_train):
-    # Plot regularization paths for Ridge
-    _alphas = np.logspace(-5, 0, 50)
-    _coef_paths = {_f: [] for _f in feature_columns}
-
-    for _alpha in _alphas:
-        _model = sm.OLS(endog=y_train, exog=X_train).fit_regularized(
-            alpha=_alpha,
-            L1_wt=0,
-        )
-        for _i, _f in enumerate(feature_columns):
-            _coef_paths[_f].append(_model.params[_i + 1])
-
-    _fig, _ax = plt.subplots(figsize=(10, 5))
-    for _f in feature_columns:
-        _ax.plot(_alphas, _coef_paths[_f], label=_f)
-
-    _ax.set_xscale("log")
-    _ax.set_xlabel("Alpha (log scale)")
-    _ax.set_ylabel("Coefficient Value")
-    _ax.set_title("Ridge Regularization Path")
-    _ax.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
-    _ax.axhline(y=0, color="black", linestyle="--", linewidth=0.5)
-    plt.tight_layout()
-    plt.show()
-    return
-
-
-@app.cell
-def _(X_train, feature_columns, np, plt, sm, y_train):
-    # Plot regularization paths for Lasso
-    _alphas = np.logspace(-1, 4, 50)
-    _coef_paths = {_f: [] for _f in feature_columns}
-
-    for _alpha in _alphas:
-        _model = sm.OLS(endog=y_train, exog=X_train).fit_regularized(
-            alpha=_alpha,
-            L1_wt=1,
-        )
-        for _i, _f in enumerate(feature_columns):
-            _coef_paths[_f].append(_model.params[_i + 1])
-
-    _fig, _ax = plt.subplots(figsize=(10, 5))
-    for _f in feature_columns:
-        _ax.plot(_alphas, _coef_paths[_f], label=_f)
-
-    _ax.set_xscale("log")
-    _ax.set_xlabel("Alpha (log scale)")
-    _ax.set_ylabel("Coefficient Value")
-    _ax.set_title("Lasso Regularization Path (notice features dropping to zero)")
-    _ax.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
-    _ax.axhline(y=0, color="black", linestyle="--", linewidth=0.5)
     plt.tight_layout()
     plt.show()
     return
@@ -879,14 +862,15 @@ def _(mo):
 
     ## Summary of Results
 
-    For this Ames Housing dataset with 12 numeric features:
-    - **OLS** provides a strong baseline with interpretable coefficients
-    - **Ridge** slightly shrinks coefficients but keeps all features
-    - **Lasso** can eliminate features, but optimal alpha shows most features are useful
-    - **Elastic Net** provides a balanced approach
+    For this Ames Housing dataset with **~250 features** (numeric + one-hot encoded categoricals):
+    - **OLS** fits the training data well but may overfit with the high feature-to-sample ratio (~5:1)
+    - **Ridge** shrinks all coefficients toward zero, reducing variance
+    - **Lasso** performs automatic feature selection, zeroing out many irrelevant features
+    - **Elastic Net** combines both behaviors
 
-    The similar performance across methods suggests the selected features are all
-    genuinely predictive of house prices, with limited multicollinearity issues.
+    The high-dimensional setting demonstrates regularization's value: with many features relative to
+    samples, regularization helps prevent overfitting and often improves test set performance. Lasso's
+    feature selection capability is particularly useful for identifying the most predictive variables.
     """)
     return
 
