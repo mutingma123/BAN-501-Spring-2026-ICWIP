@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.19.2"
+__generated_with = "0.19.4"
 app = marimo.App(width="full")
 
 
@@ -16,11 +16,7 @@ def _():
     from sklearn.model_selection import KFold
 
     sns.set_style("whitegrid")
-<<<<<<< HEAD
     return KFold, mo, np, pl, plt, sm, sns
-=======
-    return KFold, StandardScaler, mo, np, pl, plt, sm, sns
->>>>>>> 465c38fd26fc56c1a6920c04d27d2654c1cf9561
 
 
 @app.cell(hide_code=True)
@@ -244,22 +240,12 @@ def _(mo):
 
 
 @app.cell
-<<<<<<< HEAD
 def _(feature_columns, model_data, np, pl, target_column):
     # Add row index for train/test split tracking
     _model_data_indexed = model_data.with_row_index("row_idx")
-=======
-def _(StandardScaler, feature_columns, model_data, np, target_column):
-    TEST_FRACTION = 0.2
-
-    # Extract feature matrix and target
-    X_raw = model_data.select(feature_columns).to_numpy()
-    y = model_data.select(target_column).to_numpy().flatten()
->>>>>>> 465c38fd26fc56c1a6920c04d27d2654c1cf9561
 
     # Train/test split using polars
     np.random.seed(42)
-<<<<<<< HEAD
     train_data = _model_data_indexed.sample(
         fraction=0.8,
         seed=42,
@@ -270,13 +256,6 @@ def _(StandardScaler, feature_columns, model_data, np, target_column):
         on="row_idx",
         how="anti",
     )
-=======
-    n_samples = len(y)
-    n_test = int(TEST_FRACTION * n_samples)
-    _indices = np.random.permutation(n_samples)
-    train_idx = _indices[n_test:]
-    test_idx = _indices[:n_test]
->>>>>>> 465c38fd26fc56c1a6920c04d27d2654c1cf9561
 
     # Calculate standardization parameters from training data
     _train_means = train_data.select(feature_columns).mean()
@@ -291,7 +270,6 @@ def _(StandardScaler, feature_columns, model_data, np, target_column):
     if _dropped_cols:
         print(f"Dropped {len(_dropped_cols)} constant columns")
 
-<<<<<<< HEAD
     # Standardize features using polars expressions
     _standardize_exprs = [
         ((pl.col(col) - _train_means[col][0]) / _train_stds[col][0]).alias(col)
@@ -316,24 +294,11 @@ def _(StandardScaler, feature_columns, model_data, np, target_column):
 
     # Update feature_columns to only include valid columns
     feature_columns_final = _valid_cols
-=======
-    # Add constant term for statsmodels
-    # statsmodels OLS does not automatically include an intercept term, unlike
-    # scikit-learn. We manually add a column of ones so the model can estimate
-    # an intercept (beta_0). Without this, the regression line would be forced
-    # through the origin, which is inappropriate for most real-world data.
-    X_train = np.column_stack([np.ones(len(X_train_scaled)), X_train_scaled])
-    X_test = np.column_stack([np.ones(len(X_test_scaled)), X_test_scaled])
->>>>>>> 465c38fd26fc56c1a6920c04d27d2654c1cf9561
 
     print(f"Training samples: {len(y_train)}")
     print(f"Test samples: {len(y_test)}")
     print(f"Features (including intercept): {X_train.shape[1]}")
-<<<<<<< HEAD
     return X_test, X_train, feature_columns_final, y_test, y_train
-=======
-    return X_test, X_train, scaler, y_test, y_train
->>>>>>> 465c38fd26fc56c1a6920c04d27d2654c1cf9561
 
 
 @app.cell(hide_code=True)
@@ -362,11 +327,7 @@ def _(X_train, feature_columns_final, sm, y_train):
     print(f"Number of coefficients: {len(ols_model.params)}")
 
     # Extract coefficients (skip intercept for feature comparison)
-<<<<<<< HEAD
     ols_coefs = dict(zip(feature_columns_final, ols_model.params[1:]))
-=======
-    ols_coefs = dict(zip(feature_columns, ols_model.params[1:]))
->>>>>>> 465c38fd26fc56c1a6920c04d27d2654c1cf9561
     return (ols_model,)
 
 
@@ -384,91 +345,6 @@ def _(X_test, np, ols_model, y_test):
     print(f"  RMSE: ${ols_rmse:,.0f}")
     print(f"  R²: {ols_r2:.4f}")
     return
-<<<<<<< HEAD
-=======
-
-
-@app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""
-    ## Transforming Coefficients Back to Original Scale
-
-    The coefficients from our standardized model tell us the change in sale price per
-    one standard deviation change in each feature. To interpret coefficients in original
-    units (e.g., "dollars per square foot"), we need to transform them back.
-
-    ### The Math
-
-    When we standardize: $x_{\text{scaled}} = \frac{x - \mu}{\sigma}$
-
-    The model learns: $\hat{y} = \beta_0^{(s)} + \sum_j \beta_j^{(s)} \cdot x_j^{(s)}$
-
-    Substituting the standardization:
-    $$\hat{y} = \beta_0^{(s)} + \sum_j \beta_j^{(s)} \cdot \frac{x_j - \mu_j}{\sigma_j}$$
-
-    Rearranging to original scale:
-    $$\hat{y} = \underbrace{\left(\beta_0^{(s)} - \sum_j \frac{\beta_j^{(s)} \mu_j}{\sigma_j}\right)}_{\beta_0^{(\text{orig})}} + \sum_j \underbrace{\frac{\beta_j^{(s)}}{\sigma_j}}_{\beta_j^{(\text{orig})}} \cdot x_j$$
-
-    Therefore:
-    - **Original coefficient**: $\beta_j^{(\text{orig})} = \frac{\beta_j^{(\text{scaled})}}{\sigma_j}$
-    - **Original intercept**: $\beta_0^{(\text{orig})} = \beta_0^{(\text{scaled})} - \sum_j \frac{\beta_j^{(\text{scaled})} \cdot \mu_j}{\sigma_j}$
-    """)
-    return
-
-
-@app.cell
-def _(feature_columns, np, ols_model, scaler):
-    def transform_coefs_to_original_scale(model_params, scaler, feature_names):
-        """
-        Transform coefficients from standardized scale back to original scale.
-
-        Parameters
-        ----------
-        model_params : array-like
-            Model parameters where params[0] is the intercept and params[1:] are
-            feature coefficients (on standardized scale).
-        scaler : StandardScaler
-            Fitted scaler with mean_ and scale_ attributes.
-        feature_names : list
-            Names of features (for output dictionary).
-
-        Returns
-        -------
-        dict with 'intercept' and feature coefficients on original scale.
-        """
-        _intercept_scaled = model_params[0]
-        _coefs_scaled = model_params[1:]
-
-        # Transform coefficients: beta_orig = beta_scaled / std
-        _coefs_orig = _coefs_scaled / scaler.scale_
-
-        # Transform intercept: beta0_orig = beta0_scaled - sum(beta_scaled * mean / std)
-        _intercept_orig = _intercept_scaled - np.sum(_coefs_scaled * scaler.mean_ / scaler.scale_)
-
-        _result = {"intercept": _intercept_orig}
-        for _name, _coef in zip(feature_names, _coefs_orig):
-            _result[_name] = _coef
-        return _result
-
-    # Transform OLS coefficients to original scale
-    ols_coefs_original = transform_coefs_to_original_scale(
-        model_params=ols_model.params,
-        scaler=scaler,
-        feature_names=feature_columns,
-    )
-
-    # Display comparison
-    print("OLS Coefficients: Standardized vs Original Scale")
-    print("-" * 70)
-    print(f"{'Feature':<15} {'Standardized':>15} {'Original':>15} {'Unit interpretation':<20}")
-    print("-" * 70)
-    print(f"{'Intercept':<15} {ols_model.params[0]:>15,.0f} {ols_coefs_original['intercept']:>15,.0f}")
-    for _i, _feat in enumerate(feature_columns):
-        _std_coef = ols_model.params[_i + 1]
-        _orig_coef = ols_coefs_original[_feat]
-        print(f"{_feat:<15} {_std_coef:>15,.0f} {_orig_coef:>15,.2f}")
-    return (transform_coefs_to_original_scale,)
->>>>>>> 465c38fd26fc56c1a6920c04d27d2654c1cf9561
 
 
 @app.cell(hide_code=True)
@@ -519,11 +395,7 @@ def _(X_train, feature_columns_final, np, sm, y_train):
 
     # Select moderate alpha for comparison
     ridge_alpha_default = 0.001
-<<<<<<< HEAD
     ridge_coefs = dict(zip(feature_columns_final, ridge_coefs_by_alpha[ridge_alpha_default]))
-=======
-    ridge_coefs = dict(zip(feature_columns, ridge_coefs_by_alpha[ridge_alpha_default]))
->>>>>>> 465c38fd26fc56c1a6920c04d27d2654c1cf9561
     return (ridge_alpha_default,)
 
 
@@ -603,11 +475,7 @@ def _(X_train, feature_columns_final, np, sm, y_train):
 
     # Select moderate alpha for comparison (shows some feature selection)
     lasso_alpha_default = 50
-<<<<<<< HEAD
     lasso_coefs = dict(zip(feature_columns_final, lasso_coefs_by_alpha[lasso_alpha_default]))
-=======
-    lasso_coefs = dict(zip(feature_columns, lasso_coefs_by_alpha[lasso_alpha_default]))
->>>>>>> 465c38fd26fc56c1a6920c04d27d2654c1cf9561
     return (lasso_alpha_default,)
 
 
@@ -691,11 +559,7 @@ def _(X_train, feature_columns_final, np, sm, y_train):
 
     # Select L1_wt=0.5 for comparison
     enet_l1wt_default = 0.5
-<<<<<<< HEAD
     enet_coefs = dict(zip(feature_columns_final, enet_coefs_by_l1wt[enet_l1wt_default]))
-=======
-    enet_coefs = dict(zip(feature_columns, enet_coefs_by_l1wt[enet_l1wt_default]))
->>>>>>> 465c38fd26fc56c1a6920c04d27d2654c1cf9561
     return enet_alpha, enet_l1wt_default
 
 
@@ -812,11 +676,7 @@ def _(KFold, X_train, np, plt, sm, sns, y_train):
 @app.cell
 def _(X_train, kfold, np, plt, sm, sns, y_train):
     # Cross-validation for Lasso
-<<<<<<< HEAD
     lasso_cv_alphas = np.array([100, 300, 600, 1000, 1500])
-=======
-    lasso_cv_alphas = np.logspace(-1, 4, 20)  # Range from 0.1 to 1000
->>>>>>> 465c38fd26fc56c1a6920c04d27d2654c1cf9561
 
     lasso_cv_scores = []
     for _alpha in lasso_cv_alphas:
@@ -897,9 +757,7 @@ def _(
     np,
     pl,
     ridge_best_alpha,
-    scaler,
     sm,
-    transform_coefs_to_original_scale,
     y_test,
     y_train,
 ):
@@ -931,12 +789,8 @@ def _(
     }
 
     results = []
-<<<<<<< HEAD
     final_coefs = {}
 
-=======
-    final_coefs_original = {}
->>>>>>> 465c38fd26fc56c1a6920c04d27d2654c1cf9561
     for _name, _model in _models.items():
         _pred = _model.predict(X_test)
         _mse = np.mean((y_test - _pred) ** 2)
@@ -950,29 +804,13 @@ def _(
             "R²": _r2,
             "Non-zero Features": _n_features - _n_zeros,
         })
-<<<<<<< HEAD
         final_coefs[_name] = dict(zip(feature_columns_final, _model.params[1:]))
-=======
-        # Transform coefficients to original scale for interpretability
-        _orig_coefs = transform_coefs_to_original_scale(
-            model_params=_model.params,
-            scaler=scaler,
-            feature_names=feature_columns,
-        )
-        final_coefs_original[_name] = {
-            _f: _orig_coefs[_f] for _f in feature_columns
-        }
->>>>>>> 465c38fd26fc56c1a6920c04d27d2654c1cf9561
 
     results_df = pl.DataFrame(results)
 
     print("Model Comparison on Test Set:")
     print(results_df)
-<<<<<<< HEAD
     return (final_coefs,)
-=======
-    return (final_coefs_original,)
->>>>>>> 465c38fd26fc56c1a6920c04d27d2654c1cf9561
 
 
 @app.cell(hide_code=True)
@@ -980,21 +818,14 @@ def _(mo):
     mo.md(r"""
     ## Coefficient Comparison (Original Scale)
 
-<<<<<<< HEAD
     With ~250 features, we visualize regularization effects using scatter plots comparing
     OLS coefficients (x-axis) to regularized coefficients (y-axis). Points below the
     diagonal line (y=x) indicate shrinkage toward zero.
-=======
-    The coefficients below are transformed back to original scale for interpretability.
-    Each coefficient represents the change in sale price (dollars) per one-unit change
-    in that feature (e.g., dollars per square foot, dollars per year).
->>>>>>> 465c38fd26fc56c1a6920c04d27d2654c1cf9561
     """)
     return
 
 
 @app.cell
-<<<<<<< HEAD
 def _(feature_columns_final, final_coefs, np, plt):
     _ols = np.array([final_coefs["OLS"][f] for f in feature_columns_final])
     _ridge = np.array([final_coefs["Ridge"][f] for f in feature_columns_final])
@@ -1028,120 +859,8 @@ def _(feature_columns_final, final_coefs, np, plt):
     _axes[1].axhline(0, color="gray", linewidth=0.5)
     _axes[1].axvline(0, color="gray", linewidth=0.5)
 
-=======
-def _(feature_columns, final_coefs_original, np, plt, sns):
-    # Sort features by descending OLS coefficient value (original scale)
-    _ols_values = [final_coefs_original["OLS"][_f] for _f in feature_columns]
-    _sorted_indices = np.argsort(_ols_values)[::-1]  # Descending order
-    _sorted_features = [feature_columns[_i] for _i in _sorted_indices]
-
-    # Create coefficient comparison plot
-    _fig, _ax = plt.subplots(figsize=(12, 6))
-
-    _x = np.arange(len(_sorted_features))
-    _width = 0.2
-    _colors = sns.color_palette("husl", 4)
-
-    for _i, (_name, _coefs) in enumerate(final_coefs_original.items()):
-        _values = [_coefs[_f] for _f in _sorted_features]
-        _ax.bar(
-            _x + _i * _width,
-            _values,
-            width=_width,
-            label=_name,
-            color=_colors[_i],
-            edgecolor="black",
-            linewidth=0.5,
-        )
-
-    _ax.set_xlabel("Feature")
-    _ax.set_ylabel("Coefficient Value ($/unit)")
-    _ax.set_title("Coefficient Comparison Across Regularization Methods (Original Scale)")
-    _ax.set_xticks(_x + _width * 1.5)
-    _ax.set_xticklabels(_sorted_features, rotation=45, ha="right")
-    _ax.legend()
-    _ax.axhline(y=0, color="black", linestyle="-", linewidth=0.5)
     plt.tight_layout()
     plt.show()
-    return
-
-
-@app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""
-    ## Regularization Path
-
-    The regularization path shows how coefficients change as the penalty strength increases.
-    This visualization helps understand the shrinkage behavior of each method.
-    """)
-    return
-
-
-@app.cell
-def _(X_train, feature_columns, np, plt, scaler, sm, y_train):
-    # Plot regularization paths for Ridge (original scale)
-    _alphas = np.logspace(-5, 0, 50)
-    _coef_paths = {_f: [] for _f in feature_columns}
-
-    for _alpha in _alphas:
-        _model = sm.OLS(endog=y_train, exog=X_train).fit_regularized(
-            alpha=_alpha,
-            L1_wt=0,
-        )
-        # Transform to original scale: beta_orig = beta_scaled / std
-        for _i, _f in enumerate(feature_columns):
-            _coef_orig = _model.params[_i + 1] / scaler.scale_[_i]
-            _coef_paths[_f].append(_coef_orig)
-
-    _fig, _ax = plt.subplots(figsize=(10, 5))
-    for _f in feature_columns:
-        _ax.plot(_alphas, _coef_paths[_f], label=_f)
-
-    _ax.set_xscale("log")
-    _ax.set_xlabel("Alpha (log scale)")
-    _ax.set_ylabel("Coefficient Value ($/unit)")
-    _ax.set_title("Ridge Regularization Path (Original Scale)")
-    _ax.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
-    _ax.axhline(y=0, color="black", linestyle="--", linewidth=0.5)
-    plt.tight_layout()
-    plt.show()
-    return
-
-
-@app.cell
-def _(X_train, feature_columns, np, plt, scaler, sm, y_train):
-    # Plot regularization paths for Lasso (original scale)
-    _alphas = np.logspace(-1, 4, 50)
-    _coef_paths = {_f: [] for _f in feature_columns}
-
-    for _alpha in _alphas:
-        _model = sm.OLS(endog=y_train, exog=X_train).fit_regularized(
-            alpha=_alpha,
-            L1_wt=1,
-        )
-        # Transform to original scale: beta_orig = beta_scaled / std
-        for _i, _f in enumerate(feature_columns):
-            _coef_orig = _model.params[_i + 1] / scaler.scale_[_i]
-            _coef_paths[_f].append(_coef_orig)
-
-    _fig, _ax = plt.subplots(figsize=(10, 5))
-    for _f in feature_columns:
-        _ax.plot(_alphas, _coef_paths[_f], label=_f)
-
-    _ax.set_xscale("log")
-    _ax.set_xlabel("Alpha (log scale)")
-    _ax.set_ylabel("Coefficient Value ($/unit)")
-    _ax.set_title("Lasso Regularization Path (Original Scale)")
-    _ax.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
-    _ax.axhline(y=0, color="black", linestyle="--", linewidth=0.5)
->>>>>>> 465c38fd26fc56c1a6920c04d27d2654c1cf9561
-    plt.tight_layout()
-    plt.show()
-    return
-
-
-@app.cell
-def _():
     return
 
 
