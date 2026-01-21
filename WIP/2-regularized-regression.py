@@ -7,16 +7,17 @@ app = marimo.App(width="full")
 @app.cell
 def _():
     import marimo as mo
+    import pathlib
 
     import matplotlib.pyplot as plt
     import numpy as np
     import polars as pl
     import seaborn as sns
     import statsmodels.api as sm
-    from sklearn.model_selection import KFold
+    from sklearn.model_selection import KFold, train_test_split
 
     sns.set_style("whitegrid")
-    return KFold, mo, np, pl, plt, sm, sns
+    return KFold, mo, np, pathlib, pl, plt, sm, sns, train_test_split
 
 
 @app.cell(hide_code=True)
@@ -102,14 +103,6 @@ def _(mo):
     return
 
 
-@app.cell
-def _(pl):
-    raw_data = pl.read_parquet("data/regression/train.parquet")
-    print(f"Dataset shape: {raw_data.shape[0]} rows x {raw_data.shape[1]} columns")
-    raw_data.head()
-    return (raw_data,)
-
-
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
@@ -117,90 +110,71 @@ def _(mo):
 
     To better demonstrate regularization benefits, we use **all available features** from the
     Ames Housing dataset, including both numeric and categorical variables. This creates a
-    high-dimensional scenario (~250 features) where regularization clearly outperforms OLS.
+    high-dimensional scenario (~200 features) where regularization clearly outperforms OLS.
 
     **Preprocessing steps:**
-    1. Drop columns with >50% missing values (PoolQC, MiscFeature, Alley, Fence, FireplaceQu)
+    1. Drop columns with ≥25% missing values
     2. Drop the Id column
     3. Impute remaining missing values (median for numeric, mode for categorical)
     4. One-hot encode all categorical columns (drop first category to avoid collinearity)
 
-    This results in approximately 250 features with ~1,168 training samples—a ~5:1 sample-to-feature
+    This results in approximately 200 features with ~1,168 training samples—a ~6:1 sample-to-feature
     ratio where regularization provides clear benefits.
     """)
     return
 
 
 @app.cell
-def _(pl, raw_data):
-    # Identify columns to drop (>50% missing)
-    _missing_pct = raw_data.null_count() / len(raw_data)
-    _cols_to_drop = [
-        col for col in raw_data.columns
-        if _missing_pct[col][0] > 0.5
+def _(pathlib, pl):
+    # Load data
+    _data_filepath = pathlib.Path("data/regression/train.parquet")
+    raw_data = pl.read_parquet(_data_filepath)
+    print(f"Dataset shape: {raw_data.shape[0]} rows x {raw_data.shape[1]} columns")
+
+    # Drop columns with ≥25% missing values
+    MISSING_VALUE_THRESHOLD = 0.25
+    _missing_value_proportions = (raw_data.null_count() / len(raw_data)).to_dicts()[0]
+    _columns_to_drop = [
+        _key for _key, _val in _missing_value_proportions.items()
+        if _val >= MISSING_VALUE_THRESHOLD
     ]
+    raw_data = raw_data.drop(_columns_to_drop)
+    print(f"Dropped columns (≥25% missing): {_columns_to_drop}")
 
-    # Also drop Id column
-    _cols_to_drop.append("Id")
-
-    _data = raw_data.drop(_cols_to_drop)
-
-    # Separate numeric and categorical columns
-    numeric_cols = [
-        col for col in _data.columns
-        if _data[col].dtype in [pl.Float64, pl.Int64] and col != "SalePrice"
+    # Impute numeric columns with median
+    _numeric_fill_list = [
+        pl.col(_col).fill_null(pl.col(_col).median())
+        for _col in raw_data.columns
+        if raw_data[_col].dtype.is_numeric()
     ]
-    categorical_cols = [
-        col for col in _data.columns
-        if _data[col].dtype == pl.String
+    raw_data = raw_data.with_columns(_numeric_fill_list)
+
+    # Impute categorical columns with mode
+    _categorical_fill_list = [
+        pl.col(_col).fill_null(pl.col(_col).mode().first())
+        for _col in raw_data.columns
+        if not raw_data[_col].dtype.is_numeric()
     ]
-    target_column = "SalePrice"
+    raw_data = raw_data.with_columns(_categorical_fill_list)
 
-    print(f"Numeric features: {len(numeric_cols)}")
-    print(f"Categorical features: {len(categorical_cols)}")
-    print(f"Dropped columns (>50% missing): {_cols_to_drop}")
-    return categorical_cols, numeric_cols, target_column
-
-
-@app.cell
-def _(categorical_cols, numeric_cols, pl, raw_data, target_column):
-    # Drop high-missing columns and Id
-    _missing_pct = raw_data.null_count() / len(raw_data)
-    _cols_to_drop = [
-        col for col in raw_data.columns
-        if _missing_pct[col][0] > 0.5
-    ]
-    _cols_to_drop.append("Id")
-    _data = raw_data.drop(_cols_to_drop)
-
-    # Impute missing values
-    # Numeric: fill with median
-    _numeric_imputed = _data.select(
-        [pl.col(c).fill_null(pl.col(c).median()) for c in numeric_cols]
-    )
-
-    # Categorical: fill with mode (most frequent), then one-hot encode
-    _cat_imputed = _data.select(
-        [pl.col(c).fill_null(pl.col(c).mode().first()) for c in categorical_cols]
-    )
-
-    # One-hot encode categoricals (creates dummy columns)
-    _cat_dummies = _cat_imputed.to_dummies(
-        columns=categorical_cols,
+    # One-hot encode categorical columns
+    model_data = raw_data.to_dummies(
+        columns=[
+            _col for _col in raw_data.columns
+            if not raw_data[_col].dtype.is_numeric()
+        ],
         drop_first=True,
     )
 
-    # Combine all features
-    model_data = pl.concat(
-        [_numeric_imputed, _cat_dummies, _data.select(target_column)],
-        how="horizontal",
-    )
+    # Drop Id column
+    model_data = model_data.drop("Id")
 
+    target_column = "SalePrice"
     feature_columns = [c for c in model_data.columns if c != target_column]
 
     print(f"Total features after encoding: {len(feature_columns)}")
     print(f"Samples: {len(model_data)}")
-    return feature_columns, model_data
+    return feature_columns, model_data, target_column
 
 
 @app.cell(hide_code=True)
@@ -240,21 +214,12 @@ def _(mo):
 
 
 @app.cell
-def _(feature_columns, model_data, np, pl, target_column):
-    # Add row index for train/test split tracking
-    _model_data_indexed = model_data.with_row_index("row_idx")
-
-    # Train/test split using polars
-    np.random.seed(42)
-    train_data = _model_data_indexed.sample(
-        fraction=0.8,
-        seed=42,
-        shuffle=True,
-    )
-    test_data = _model_data_indexed.join(
-        train_data,
-        on="row_idx",
-        how="anti",
+def _(feature_columns, model_data, pl, target_column, train_test_split):
+    # Train/test split using sklearn
+    train_data, test_data = train_test_split(
+        model_data,
+        test_size=0.2,
+        random_state=42,
     )
 
     # Calculate standardization parameters from training data
