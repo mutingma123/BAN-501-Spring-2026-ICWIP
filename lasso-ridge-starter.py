@@ -12,9 +12,10 @@ def _():
 
     import matplotlib.pyplot as plt
     import polars as pl
+    import seaborn as sns
     from sklearn.preprocessing import StandardScaler
     from sklearn.model_selection import train_test_split
-    import seaborn as sns
+    import statsmodels.api as sm
 
     sns.set_style('whitegrid')
     return pathlib, pl, train_test_split
@@ -76,17 +77,6 @@ def _(raw_data, train_test_split):
 
     train_data.shape
     test_data.shape
-    return (train_data,)
-
-
-@app.cell
-def _(train_data):
-    train_data
-    return
-
-
-@app.cell
-def _():
     return
 
 
