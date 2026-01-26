@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.19.2"
+__generated_with = "0.19.4"
 app = marimo.App(width="full")
 
 
@@ -22,6 +22,7 @@ def _():
         roc_auc_score,
         roc_curve,
     )
+    from sklearn.model_selection import train_test_split
 
     sns.set_style("whitegrid")
     return (
@@ -38,6 +39,7 @@ def _():
         roc_curve,
         smf,
         sns,
+        train_test_split,
     )
 
 
@@ -343,6 +345,108 @@ def _(categorical_features, model_data, pl, plt, sns):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
+    ## Empirical Sigmoid: Seeing the S-Curve in Data
+
+    The sigmoid function we plotted earlier is a theoretical curve. But can we see this S-shape
+    emerge naturally from our data?
+
+    **Approach:** For the `duration` feature (call length in seconds):
+    1. Bin the values into groups
+    2. Calculate the proportion of subscribers (y=1) in each bin
+    3. Plot bin midpoint vs. subscription rate
+
+    If `duration` has a sigmoid-like relationship with subscription probability, we should see
+    an S-shaped curve: low probability at short durations, rising through a transition zone,
+    then leveling off at higher durations.
+    """)
+    return
+
+
+@app.cell
+def _(model_data, np, numeric_features, pl, plt, sns):
+    # Bin each numeric feature and calculate subscription rate per bin
+    _n_bins = 20
+    _fig, _axes = plt.subplots(
+        nrows=2,
+        ncols=2,
+        figsize=(10, 8),
+    )
+    _axes = _axes.flatten()
+
+    for _i, _feature in enumerate(numeric_features):
+        _feat_min = model_data[_feature].min()
+        _feat_max = model_data[_feature].max()
+
+        _bin_edges = np.linspace(
+            start=_feat_min,
+            stop=_feat_max,
+            num=_n_bins + 1,
+        )
+
+        # Assign each row to a bin
+        _binned = model_data.with_columns(
+            pl.col(_feature)
+            .cut(
+                breaks=_bin_edges[1:-1].tolist(),
+                labels=[str(_j) for _j in range(_n_bins)],
+            )
+            .alias("feature_bin")
+        )
+
+        # Calculate subscription rate and count per bin
+        _bin_stats = (
+            _binned.group_by("feature_bin")
+            .agg([
+                pl.col("y").mean().alias("subscription_rate"),
+                pl.col(_feature).mean().alias("bin_midpoint"),
+                pl.len().alias("count"),
+            ])
+            .sort("bin_midpoint")
+            .filter(pl.col("count") >= 10)  # Filter bins with too few observations
+        )
+
+        # Scatter plot with size proportional to count
+        _sizes = np.array(_bin_stats["count"].to_list()) / 10
+        _sizes = np.clip(_sizes, 20, 200)  # Keep sizes reasonable
+
+        _axes[_i].scatter(
+            _bin_stats["bin_midpoint"].to_list(),
+            _bin_stats["subscription_rate"].to_list(),
+            s=_sizes,
+            color="steelblue",
+            alpha=0.7,
+            edgecolor="black",
+            linewidth=0.5,
+        )
+
+        # Connect with a line
+        sns.lineplot(
+            x=_bin_stats["bin_midpoint"].to_list(),
+            y=_bin_stats["subscription_rate"].to_list(),
+            ax=_axes[_i],
+            color="steelblue",
+            alpha=0.5,
+            linewidth=1.5,
+        )
+
+        _axes[_i].set_xlabel(_feature)
+        _axes[_i].set_ylabel("P(y=1)")
+        _axes[_i].set_title(f"Subscription Rate by {_feature}")
+        _axes[_i].set_ylim(-0.02, None)
+
+    plt.suptitle(
+        "Empirical Sigmoid: Which Features Show an S-Curve?",
+        fontsize=12,
+        y=1.02,
+    )
+    plt.tight_layout()
+    plt.show()
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
     ## Train/Test Split
 
     We split the data into training (80%) and test (20%) sets:
@@ -355,24 +459,17 @@ def _(mo):
 
 
 @app.cell
-def _(model_data, np, pl):
-    # Train/test split (stratified)
-    np.random.seed(42)
+def _(model_data, pl, train_test_split):
+    # Train/test split (stratified) using scikit-learn
+    _train_indices, _test_indices = train_test_split(
+        range(len(model_data)),
+        test_size=0.2,
+        random_state=42,
+        stratify=model_data["y"].to_list(),
+    )
 
-    _class_0 = model_data.filter(pl.col("y") == 0)
-    _class_1 = model_data.filter(pl.col("y") == 1)
-
-    _n_train_0 = int(0.8 * len(_class_0))
-    _n_train_1 = int(0.8 * len(_class_1))
-
-    _train_0 = _class_0.sample(n=_n_train_0, seed=42)
-    _train_1 = _class_1.sample(n=_n_train_1, seed=42)
-
-    _test_0 = _class_0.join(_train_0, on="id", how="anti")
-    _test_1 = _class_1.join(_train_1, on="id", how="anti")
-
-    train_data = pl.concat([_train_0, _train_1]).sample(fraction=1.0, seed=42)
-    test_data = pl.concat([_test_0, _test_1]).sample(fraction=1.0, seed=42)
+    train_data = model_data[_train_indices]
+    test_data = model_data[_test_indices]
 
     print(f"Training set: {len(train_data):,} rows")
     print(f"Test set: {len(test_data):,} rows")
