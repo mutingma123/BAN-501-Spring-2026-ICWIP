@@ -1,10 +1,7 @@
 import marimo
 
 __generated_with = "0.19.4"
-app = marimo.App(
-    width="full",
-    layout_file="layouts/3.0-logistic-regression-intuition.slides.json",
-)
+app = marimo.App(width="full")
 
 
 @app.cell

@@ -1,0 +1,544 @@
+\documentclass[11pt]{article}
+
+% Page setup
+\usepackage[margin=1in]{geometry}
+\usepackage{parskip}
+
+% Math
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+% Tables
+\usepackage{booktabs}
+\usepackage{array}
+
+% Code listings
+\usepackage{listings}
+\usepackage{xcolor}
+
+% Hyperlinks
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    urlcolor=blue
+}
+
+% Python code style
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.95}
+
+\lstdefinestyle{pythonstyle}{
+    backgroundcolor=\color{backcolour},
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{blue},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\small,
+    breakatwhitespace=false,
+    breaklines=true,
+    captionpos=b,
+    keepspaces=true,
+    numbers=left,
+    numbersep=5pt,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=4,
+    frame=single
+}
+
+\lstset{style=pythonstyle, language=Python}
+
+\title{Logistic Regression Cheatsheet}
+\author{BAN-501: Business Analytics}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\tableofcontents
+\newpage
+
+%==============================================================================
+\section{Odds and Log-Odds}
+%==============================================================================
+
+\subsection{From Probability to Odds}
+
+Given a probability $p = P(Y = 1)$, the \textbf{odds} are defined as:
+\[
+\text{odds} = \frac{p}{1 - p} = \frac{P(Y = 1)}{P(Y = 0)}
+\]
+
+\textbf{Interpretation:} Odds represent the ratio of success to failure. An odds of 4 means ``4 to 1 in favor.''
+
+\subsubsection{Worked Examples}
+
+\begin{itemize}
+    \item $p = 0.2$: $\text{odds} = \frac{0.2}{1 - 0.2} = \frac{0.2}{0.8} = 0.25$ \quad (4 to 1 against)
+    \item $p = 0.5$: $\text{odds} = \frac{0.5}{1 - 0.5} = \frac{0.5}{0.5} = 1.0$ \quad (even odds)
+    \item $p = 0.8$: $\text{odds} = \frac{0.8}{1 - 0.8} = \frac{0.8}{0.2} = 4.0$ \quad (4 to 1 in favor)
+\end{itemize}
+
+\subsection{From Odds to Log-Odds (The Logit Function)}
+
+The \textbf{log-odds} (or \textbf{logit}) is the natural logarithm of the odds:
+\[
+\text{logit}(p) = \log\left(\frac{p}{1 - p}\right)
+\]
+
+\textbf{Key insight:} The logit function maps probabilities from $[0, 1]$ to $(-\infty, +\infty)$.
+
+\subsection{Probability--Odds--Log-Odds Conversion Table}
+
+\begin{center}
+\begin{tabular}{ccc}
+\toprule
+\textbf{Probability ($p$)} & \textbf{Odds} & \textbf{Log-Odds} \\
+\midrule
+0.01 & 0.0101 & $-4.60$ \\
+0.10 & 0.1111 & $-2.20$ \\
+0.20 & 0.2500 & $-1.39$ \\
+0.25 & 0.3333 & $-1.10$ \\
+0.50 & 1.0000 & $0.00$ \\
+0.75 & 3.0000 & $+1.10$ \\
+0.80 & 4.0000 & $+1.39$ \\
+0.90 & 9.0000 & $+2.20$ \\
+0.99 & 99.0000 & $+4.60$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Properties:}
+\begin{itemize}
+    \item Log-odds are \textbf{symmetric} around 0
+    \item $p = 0.5$ corresponds to log-odds $= 0$
+    \item Log-odds range from $-\infty$ to $+\infty$
+\end{itemize}
+
+%==============================================================================
+\section{The Logistic (Sigmoid) Function}
+%==============================================================================
+
+The \textbf{logistic function} (also called the \textbf{sigmoid function}) is the inverse of the logit:
+\[
+\sigma(z) = \frac{1}{1 + e^{-z}} = \frac{e^z}{1 + e^z}
+\]
+
+where $z$ represents the log-odds (or any linear predictor).
+
+\subsection{Key Properties}
+
+\begin{enumerate}
+    \item \textbf{Bounded output}: Always produces values in $(0, 1)$---valid probabilities
+    \item \textbf{S-shaped}: Captures natural threshold behavior in classification
+    \item \textbf{Symmetric}: $\sigma(-z) = 1 - \sigma(z)$
+    \item \textbf{Smooth}: Differentiable everywhere (important for optimization)
+\end{enumerate}
+
+\subsection{Key Values}
+
+\begin{center}
+\begin{tabular}{cc}
+\toprule
+\textbf{Input ($z$)} & \textbf{Output $\sigma(z)$} \\
+\midrule
+$-\infty$ & $\to 0$ \\
+$-2$ & $0.119$ \\
+$-1$ & $0.269$ \\
+$0$ & $0.500$ \\
+$+1$ & $0.731$ \\
+$+2$ & $0.881$ \\
+$+\infty$ & $\to 1$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Relationship Between Logit and Sigmoid}
+
+The logit and sigmoid are \textbf{inverse functions}:
+\[
+\sigma(\text{logit}(p)) = p \quad \text{and} \quad \text{logit}(\sigma(z)) = z
+\]
+
+%==============================================================================
+\section{The Logistic Regression Model}
+%==============================================================================
+
+\subsection{Model Equation}
+
+\textbf{Log-odds form:}
+\[
+\log\left(\frac{p}{1-p}\right) = \beta_0 + \beta_1 x_1 + \beta_2 x_2 + \cdots + \beta_k x_k
+\]
+
+\textbf{Probability form:}
+\[
+P(Y = 1 \mid \mathbf{x}) = \frac{1}{1 + e^{-(\beta_0 + \beta_1 x_1 + \cdots + \beta_k x_k)}}
+\]
+
+For the simple case with one predictor:
+\[
+P(Y = 1 \mid x) = \frac{1}{1 + e^{-(\beta_0 + \beta_1 x)}}
+\]
+
+\subsection{Coefficient Interpretation}
+
+\begin{itemize}
+    \item $\beta_0$ (intercept): The log-odds of $Y = 1$ when all predictors equal zero
+    \item $\beta_j$ (coefficient): The change in log-odds for a one-unit increase in $x_j$, holding other variables constant
+    \item $e^{\beta_j}$ (odds ratio): The multiplicative change in odds for a one-unit increase in $x_j$
+\end{itemize}
+
+\textbf{Interpreting the odds ratio:}
+\begin{itemize}
+    \item $e^{\beta_j} > 1$: Odds increase (positive association)
+    \item $e^{\beta_j} = 1$: No effect ($\beta_j = 0$)
+    \item $e^{\beta_j} < 1$: Odds decrease (negative association)
+\end{itemize}
+
+%==============================================================================
+\section{Worked Prediction Example}
+%==============================================================================
+
+\textbf{Given:} A fitted logistic regression model with:
+\begin{itemize}
+    \item $\beta_0 = -2$ (intercept)
+    \item $\beta_1 = 1.5$ (coefficient for $x$)
+    \item New observation: $x = 2$
+\end{itemize}
+
+\textbf{Step 1: Compute the linear predictor (log-odds)}
+\[
+z = \beta_0 + \beta_1 x = -2 + 1.5(2) = -2 + 3 = 1
+\]
+
+\textbf{Step 2: Apply the sigmoid function to get probability}
+\[
+P(Y = 1 \mid x = 2) = \sigma(1) = \frac{1}{1 + e^{-1}} = \frac{1}{1 + 0.368} = \frac{1}{1.368} \approx 0.731
+\]
+
+\textbf{Step 3: Interpret the result}
+\begin{itemize}
+    \item The predicted probability of $Y = 1$ is approximately 73.1\%
+    \item If using a threshold of 0.5, we would classify this observation as $\hat{Y} = 1$
+\end{itemize}
+
+\textbf{Bonus: Interpret the coefficient}
+\begin{itemize}
+    \item $\beta_1 = 1.5$ means a one-unit increase in $x$ increases log-odds by 1.5
+    \item Odds ratio: $e^{1.5} \approx 4.48$, so a one-unit increase in $x$ multiplies the odds by about 4.5
+\end{itemize}
+
+%==============================================================================
+\section{Python Code Snippets}
+%==============================================================================
+
+\subsection{Fitting Logistic Regression with Statsmodels}
+
+\begin{lstlisting}
+import numpy as np
+import statsmodels.api as sm
+
+# Prepare data (add constant for intercept)
+X = sm.add_constant(X_train)
+
+# Fit model
+model = sm.Logit(
+    endog=y_train,
+    exog=X,
+)
+result = model.fit()
+
+# View summary
+print(result.summary())
+
+# Extract coefficients
+beta_0 = result.params[0]  # intercept
+beta_1 = result.params[1]  # first coefficient
+
+# Odds ratios
+odds_ratios = np.exp(result.params)
+\end{lstlisting}
+
+\subsection{Making Predictions}
+
+\begin{lstlisting}
+# Prepare new data
+X_new = sm.add_constant(X_test)
+
+# Predict probabilities
+probabilities = result.predict(X_new)
+
+# Convert to class predictions (threshold = 0.5)
+predictions = (probabilities >= 0.5).astype(int)
+\end{lstlisting}
+
+\subsection{Manual Probability Calculation}
+
+\begin{lstlisting}
+def sigmoid(z):
+    """Compute the sigmoid/logistic function."""
+    return 1 / (1 + np.exp(-z))
+
+# Given coefficients and new x value
+beta_0 = -2
+beta_1 = 1.5
+x_new = 2
+
+# Compute probability
+z = beta_0 + beta_1 * x_new  # linear predictor
+prob = sigmoid(z)            # probability
+print(f"P(Y=1 | x={x_new}) = {prob:.3f}")
+\end{lstlisting}
+
+%==============================================================================
+\section{Classification Metrics}
+%==============================================================================
+
+\subsection{Confusion Matrix}
+
+A confusion matrix summarizes classification results:
+
+\begin{center}
+\begin{tabular}{l|cc}
+ & \textbf{Predicted Negative} & \textbf{Predicted Positive} \\
+\midrule
+\textbf{Actual Negative} & True Negative (TN) & False Positive (FP) \\
+\textbf{Actual Positive} & False Negative (FN) & True Positive (TP) \\
+\end{tabular}
+\end{center}
+
+\subsection{Key Metrics}
+
+\textbf{Recall (Sensitivity, True Positive Rate):}
+\[
+\text{Recall} = \frac{TP}{TP + FN}
+\]
+``Of all actual positives, what fraction did we correctly identify?''
+
+\textbf{Precision (Positive Predictive Value):}
+\[
+\text{Precision} = \frac{TP}{TP + FP}
+\]
+``Of all predicted positives, what fraction were actually positive?''
+
+\textbf{Specificity (True Negative Rate):}
+\[
+\text{Specificity} = \frac{TN}{TN + FP}
+\]
+``Of all actual negatives, what fraction did we correctly identify?''
+
+\textbf{Accuracy:}
+\[
+\text{Accuracy} = \frac{TP + TN}{TP + TN + FP + FN}
+\]
+
+\textbf{F1 Score:} Harmonic mean of precision and recall:
+\[
+F_1 = 2 \cdot \frac{\text{Precision} \times \text{Recall}}{\text{Precision} + \text{Recall}} = \frac{2 \cdot TP}{2 \cdot TP + FP + FN}
+\]
+
+\subsection{Worked Example}
+
+Given confusion matrix:
+
+\begin{center}
+\begin{tabular}{l|cc}
+ & \textbf{Pred. Neg.} & \textbf{Pred. Pos.} \\
+\midrule
+\textbf{Actual Neg.} & TN = 50 & FP = 10 \\
+\textbf{Actual Pos.} & FN = 5 & TP = 35 \\
+\end{tabular}
+\end{center}
+
+\textbf{Calculations:}
+\begin{align*}
+\text{Recall} &= \frac{35}{35 + 5} = \frac{35}{40} = 0.875 \\[6pt]
+\text{Precision} &= \frac{35}{35 + 10} = \frac{35}{45} \approx 0.778 \\[6pt]
+\text{Specificity} &= \frac{50}{50 + 10} = \frac{50}{60} \approx 0.833 \\[6pt]
+\text{Accuracy} &= \frac{35 + 50}{35 + 50 + 10 + 5} = \frac{85}{100} = 0.85 \\[6pt]
+F_1 &= 2 \cdot \frac{0.778 \times 0.875}{0.778 + 0.875} = 2 \cdot \frac{0.681}{1.653} \approx 0.824
+\end{align*}
+
+\subsection{When to Prioritize Each Metric}
+
+\begin{center}
+\begin{tabular}{p{2.5cm}p{5cm}p{5cm}}
+\toprule
+\textbf{Metric} & \textbf{Prioritize when...} & \textbf{Example} \\
+\midrule
+Recall & False negatives are costly & Disease screening, fraud detection \\
+Precision & False positives are costly & Spam filtering, criminal conviction \\
+F1 Score & Need balance between precision and recall & General classification tasks \\
+Accuracy & Classes are balanced and errors are equally costly & Balanced datasets \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Python Code for Metrics}
+
+\begin{lstlisting}
+from sklearn.metrics import (
+    confusion_matrix,
+    classification_report,
+    precision_score,
+    recall_score,
+    f1_score,
+    accuracy_score,
+)
+
+# Compute confusion matrix
+cm = confusion_matrix(
+    y_true=y_test,
+    y_pred=y_pred,
+)
+print("Confusion Matrix:")
+print(cm)
+
+# Individual metrics
+print(f"Accuracy:  {accuracy_score(y_test, y_pred):.3f}")
+print(f"Precision: {precision_score(y_test, y_pred):.3f}")
+print(f"Recall:    {recall_score(y_test, y_pred):.3f}")
+print(f"F1 Score:  {f1_score(y_test, y_pred):.3f}")
+
+# Full classification report
+print(classification_report(y_test, y_pred))
+\end{lstlisting}
+
+%==============================================================================
+\section{ROC Curve and AUC}
+%==============================================================================
+
+\subsection{Definitions}
+
+\textbf{True Positive Rate (TPR)} = Recall = Sensitivity:
+\[
+\text{TPR} = \frac{TP}{TP + FN}
+\]
+
+\textbf{False Positive Rate (FPR)} = 1 $-$ Specificity:
+\[
+\text{FPR} = \frac{FP}{FP + TN}
+\]
+
+\subsection{ROC Curve}
+
+The \textbf{Receiver Operating Characteristic (ROC) curve} plots TPR vs.\ FPR at various classification thresholds.
+
+\textbf{How it's generated:}
+\begin{enumerate}
+    \item Start with predicted probabilities for all observations
+    \item Vary the classification threshold from 0 to 1
+    \item At each threshold, compute TPR and FPR
+    \item Plot (FPR, TPR) pairs as a curve
+\end{enumerate}
+
+\textbf{Key points on the ROC curve:}
+\begin{itemize}
+    \item $(0, 0)$: Threshold = 1 (predict all negative)
+    \item $(1, 1)$: Threshold = 0 (predict all positive)
+    \item $(0, 1)$: Perfect classifier
+    \item Diagonal line: Random classifier (no skill)
+\end{itemize}
+
+\subsection{AUC (Area Under the ROC Curve)}
+
+\textbf{AUC} measures the overall ability of the model to discriminate between classes.
+
+\textbf{Interpretation:}
+\begin{itemize}
+    \item AUC = probability that a randomly chosen positive instance is ranked higher than a randomly chosen negative instance
+    \item AUC = 1.0: Perfect discrimination
+    \item AUC = 0.5: No discrimination (random guessing)
+    \item AUC $<$ 0.5: Worse than random (predictions are inverted)
+\end{itemize}
+
+\textbf{AUC guidelines:}
+\begin{center}
+\begin{tabular}{cl}
+\toprule
+\textbf{AUC Range} & \textbf{Interpretation} \\
+\midrule
+0.90--1.00 & Excellent \\
+0.80--0.90 & Good \\
+0.70--0.80 & Fair \\
+0.60--0.70 & Poor \\
+0.50--0.60 & Fail \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Python Code for ROC Curve}
+
+\begin{lstlisting}
+import matplotlib.pyplot as plt
+from sklearn.metrics import roc_curve, roc_auc_score
+
+# Get predicted probabilities (not class predictions)
+y_proba = model.predict_proba(X_test)[:, 1]
+
+# Compute ROC curve
+fpr, tpr, thresholds = roc_curve(
+    y_true=y_test,
+    y_score=y_proba,
+)
+
+# Compute AUC
+auc = roc_auc_score(
+    y_true=y_test,
+    y_score=y_proba,
+)
+
+# Plot ROC curve
+fig, ax = plt.subplots(figsize=(6, 6))
+ax.plot(fpr, tpr, label=f"ROC Curve (AUC = {auc:.3f})")
+ax.plot([0, 1], [0, 1], "k--", label="Random Classifier")
+ax.set_xlabel("False Positive Rate")
+ax.set_ylabel("True Positive Rate")
+ax.set_title("ROC Curve")
+ax.legend()
+plt.show()
+\end{lstlisting}
+
+%==============================================================================
+\section{Quick Reference}
+%==============================================================================
+
+\subsection{Key Formulas}
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+\textbf{Concept} & \textbf{Formula} \\
+\midrule
+Odds & $\displaystyle \frac{p}{1-p}$ \\[10pt]
+Logit (log-odds) & $\displaystyle \log\left(\frac{p}{1-p}\right)$ \\[10pt]
+Sigmoid & $\displaystyle \sigma(z) = \frac{1}{1 + e^{-z}}$ \\[10pt]
+Logistic regression & $\displaystyle P(Y=1) = \frac{1}{1 + e^{-(\beta_0 + \beta_1 x)}}$ \\[10pt]
+Odds ratio & $e^{\beta_j}$ \\[6pt]
+\midrule
+Recall & $\displaystyle \frac{TP}{TP + FN}$ \\[10pt]
+Precision & $\displaystyle \frac{TP}{TP + FP}$ \\[10pt]
+F1 Score & $\displaystyle \frac{2 \cdot TP}{2 \cdot TP + FP + FN}$ \\[10pt]
+TPR (for ROC) & $\displaystyle \frac{TP}{TP + FN}$ \\[10pt]
+FPR (for ROC) & $\displaystyle \frac{FP}{FP + TN}$ \\[10pt]
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Coefficient Interpretation Checklist}
+
+\begin{enumerate}
+    \item Identify $\beta_j$ from the model output
+    \item \textbf{Log-odds interpretation}: ``A one-unit increase in $x_j$ changes the log-odds by $\beta_j$''
+    \item Calculate odds ratio: $e^{\beta_j}$
+    \item \textbf{Odds ratio interpretation}: ``A one-unit increase in $x_j$ multiplies the odds by $e^{\beta_j}$''
+    \item If $e^{\beta_j} > 1$: odds increase; if $e^{\beta_j} < 1$: odds decrease
+\end{enumerate}
+
+\end{document}

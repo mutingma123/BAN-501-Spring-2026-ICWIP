@@ -6,3 +6,16 @@ progress.txt
 # pixi environments
 .pixi/*
 !.pixi/config.toml
+
+# LaTeX auxiliary files
+*.aux
+*.log
+*.out
+*.toc
+*.lof
+*.lot
+*.bbl
+*.blg
+*.fls
+*.fdb_latexmk
+*.synctex.gz
