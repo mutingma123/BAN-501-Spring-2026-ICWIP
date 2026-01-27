@@ -140,7 +140,7 @@ def _(mo):
     - `education`: Education level (primary, secondary, tertiary, unknown)
     - `housing`: Has housing loan? (yes, no)
 
-    We sample 10,000 rows (stratified by target) for faster demonstration.
+    We sample 10,000 rows for faster demonstration.
     """)
     return
 
@@ -165,6 +165,22 @@ def _(raw_data):
         "y"
     ).len().sort("y")
     return (model_data,)
+
+
+@app.cell
+def _(model_data, plt, sns):
+    _fig, _ax = plt.subplots(1, 1, figsize=(6, 4))
+
+    sns.scatterplot(
+        model_data,
+        x='duration',
+        y='y',
+        alpha=0.01,
+        edgecolor='k',
+    )
+
+    plt.show()
+    return
 
 
 @app.cell(hide_code=True)
