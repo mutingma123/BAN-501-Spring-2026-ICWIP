@@ -4,30 +4,33 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Course materials for BAN-501 featuring interactive notebooks built with [marimo](https://marimo.io/). The notebooks cover machine learning topics: linear regression, regularized regression, logistic regression, decision trees, and XGBoost with Optuna hyperparameter optimization.
+Course materials for BAN-501 featuring interactive notebooks built with [marimo](https://marimo.io/). The notebooks cover machine learning topics in sequence:
+
+1. Linear regression (hill-climbing optimization, statsmodels verification)
+2. Regularized regression (Ridge, Lasso, Elastic Net)
+3. Logistic regression (binary classification, metrics, ROC/AUC)
+4. Decision trees (random forests, feature importance)
+5. XGBoost with Optuna hyperparameter optimization
 
 ## Environment Setup
 
 This project uses [pixi](https://pixi.sh/) for environment management with Python 3.14.
 
 ```bash
-# Install dependencies
 pixi install
-
-# Run any Python command
 pixi run python <script.py>
 ```
 
 ## Running Notebooks
 
-Marimo notebooks are Python files with `@app.cell` decorators. Run them as scripts:
+Marimo notebooks are Python files with `@app.cell` decorators.
 
+**Non-interactive execution** (for scripts/CI):
 ```bash
-pixi run python 1-linear-regression.py
+MPLBACKEND=Agg pixi run python 1-linear-regression.py
 ```
 
-For interactive editing:
-
+**Interactive editing**:
 ```bash
 pixi run marimo edit 1-linear-regression.py
 ```
@@ -72,13 +75,9 @@ def _(pl, plt):
 
 ## Data
 
-- `data/regression/train.parquet` - Ames Housing dataset
-- `data/classification/playground-series-s5e8/train.parquet` - Bank marketing dataset
-- `data/MNIST/` - MNIST features and targets
-
-## Key Dependencies
-
-- polars, pyarrow - data handling
-- statsmodels, scikit-learn, xgboost, optuna - modeling
-- matplotlib, seaborn - visualization
-- marimo - reactive notebooks
+```
+data/
+├── regression/train.parquet          # Ames Housing dataset
+├── classification/playground-series-s5e8/train.parquet  # Bank marketing dataset
+└── MNIST/                            # MNIST features and targets
+```
