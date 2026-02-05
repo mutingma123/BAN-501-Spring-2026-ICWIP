@@ -14,6 +14,7 @@ def _():
     import seaborn as sns
     import statsmodels.api as sm
     import statsmodels.formula.api as smf
+    from sklearn.metrics import roc_auc_score
     from sklearn.model_selection import GridSearchCV, train_test_split
     from sklearn.preprocessing import OneHotEncoder
     from sklearn.tree import DecisionTreeClassifier, export_text, plot_tree
@@ -255,8 +256,6 @@ def _(
         estimator=DecisionTreeClassifier(random_state=42),
         param_grid=param_grid,
         cv=5,
-        scoring="roc_auc",
-        n_jobs=-1,
     )
 
     # Fit with cross-validation
@@ -314,7 +313,7 @@ def _(mo):
 
 @app.cell
 def _(all_feature_names, dt_model, plot_tree, plt):
-    _fig, _ax = plt.subplots(figsize=(20, 10))
+    _fig, _ax = plt.subplots(figsize=(10, 4))
     plot_tree(
         decision_tree=dt_model,
         feature_names=all_feature_names,
