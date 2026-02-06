@@ -17,6 +17,7 @@ def _():
     from sklearn.metrics import roc_auc_score
     from sklearn.model_selection import GridSearchCV, train_test_split
     from sklearn.preprocessing import OneHotEncoder
+    from sklearn.ensemble import RandomForestClassifier
     from sklearn.tree import DecisionTreeClassifier, export_text, plot_tree
 
     sns.set_style("whitegrid")
@@ -24,11 +25,14 @@ def _():
         DecisionTreeClassifier,
         GridSearchCV,
         OneHotEncoder,
+        RandomForestClassifier,
         export_text,
         mo,
+        np,
         pl,
         plot_tree,
         plt,
+        roc_auc_score,
         smf,
         train_test_split,
     )
@@ -323,6 +327,154 @@ def _(all_feature_names, dt_model, plot_tree, plt):
         ax=_ax,
         fontsize=8,
     )
+    plt.tight_layout()
+    plt.show()
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Bootstrap Sampling
+
+    A **bootstrap sample** is created by sampling $n$ observations **with replacement** from a
+    dataset of $n$ observations. Because sampling is done with replacement:
+
+    - Some observations appear **more than once**
+    - Some observations are **left out entirely**
+    - On average, each bootstrap sample contains about **63.2%** of the unique original observations
+      (the rest are duplicates)
+
+    Observations not selected in a given bootstrap sample are called **out-of-bag (OOB)** samples.
+    These can be used as a built-in validation set — no need for a separate holdout.
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## From Bootstrap Samples to Diverse Trees
+
+    Each bootstrap sample produces a **different** training set, so fitting the same decision tree
+    algorithm to each one yields **different splits and tree structures**.
+
+    Random forests add a second source of diversity: at each split, only a **random subset** of
+    features is considered as candidates. For classification, the default is $\sqrt{p}$ features
+    (where $p$ is the total number of features).
+
+    $$\text{Same algorithm} + \text{different data} + \text{random feature subsets} \rightarrow \textbf{diverse trees}$$
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Aggregation: Majority Voting
+
+    Once we have an ensemble of diverse trees, each tree **votes** on the predicted class for a
+    new observation. The final prediction is the **majority vote** across all trees.
+
+    For probability estimates, the forest **averages** the predicted probabilities from each tree.
+    This averaging reduces variance: individual trees may make errors, but uncorrelated errors
+    **cancel out** through aggregation.
+
+    This process — **B**ootstrap samples + **Agg**regation — is called **bagging**
+    (Bootstrap AGGregatING).
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Gini $\rightarrow$ Trees $\rightarrow$ Bootstrap $\rightarrow$ Random Forests
+
+    Putting it all together:
+
+    1. **Gini impurity** ($1 - \sum p_i^2$) quantifies class mixing; lower = purer
+    2. **Decision trees** greedily select splits that minimize weighted Gini
+    3. **Bootstrap sampling** creates diverse training sets for each tree
+    4. **Random feature subsets** at each split add further diversity
+    5. **Aggregation** (majority voting) combines diverse trees into a robust ensemble
+
+    > Diversity through bootstrapping and random feature selection transforms high-variance trees
+    > into a low-variance ensemble.
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Random Forest
+
+    Key hyperparameters:
+
+    - `n_estimators`: Number of trees in the forest (more trees = more stable, but slower)
+    - `max_depth`: Maximum depth of each tree (controls overfitting)
+    - `min_samples_split`: Minimum samples required to split an internal node
+    - `max_features`: Number of features considered at each split (`"sqrt"` for classification)
+    """)
+    return
+
+
+@app.cell
+def _(
+    RandomForestClassifier,
+    X_test_encoded,
+    X_train_encoded,
+    roc_auc_score,
+    y_test,
+    y_train,
+):
+    rf_model = RandomForestClassifier(
+        n_estimators=100,
+        max_depth=7,
+        min_samples_split=10,
+        max_features="sqrt",
+        random_state=42,
+        n_jobs=-1,
+    )
+    rf_model.fit(X_train_encoded, y_train)
+
+    _rf_proba = rf_model.predict_proba(X_test_encoded)[:, 1]
+    _rf_auc = roc_auc_score(y_test, _rf_proba)
+    print(f"Random Forest Test AUC: {_rf_auc:.4f}")
+    return (rf_model,)
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Feature Importance
+
+    Gini-based feature importance measures the total reduction in Gini impurity brought by each
+    feature across all trees in the forest. Features that frequently produce large purity gains
+    rank higher.
+    """)
+    return
+
+
+@app.cell
+def _(all_feature_names, np, plt, rf_model):
+    _importances = rf_model.feature_importances_
+    _sorted_idx = np.argsort(_importances)
+
+    _fig, _ax = plt.subplots(figsize=(8, 6))
+
+    _ax.barh(
+        range(len(_sorted_idx)),
+        _importances[_sorted_idx],
+        color="steelblue",
+        edgecolor="k",
+    )
+    _ax.set_yticks(range(len(_sorted_idx)))
+    _ax.set_yticklabels([all_feature_names[_i] for _i in _sorted_idx])
+    _ax.set_xlabel("Gini Importance")
+    _ax.set_title("Feature Importance (Random Forest)")
+
     plt.tight_layout()
     plt.show()
     return

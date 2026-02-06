@@ -9,8 +9,8 @@ Course materials for BAN-501, featuring interactive notebooks built with [marimo
 | `1-linear-regression.py` | Linear regression from scratch using hill-climbing optimization, with statsmodels verification |
 | `2-lasso-ridge-regression.py` | Ridge, Lasso, and Elastic Net regression with OLS baseline and RMSE evaluation |
 | `3-logistic-regression.py` | Logistic regression for binary classification with odds ratios and model evaluation |
-| `4-decision-trees.py` | Decision trees and random forests with feature importance analysis |
-| `5-xgboost-optuna.py` | XGBoost with Optuna hyperparameter optimization and model comparison |
+| `4-decision-trees.py` | Decision trees with GridSearchCV tuning, logistic regression comparison, and permutation importance |
+| `decision-trees.py` | Decision tree visualization with text export and tree diagrams |
 
 ## Getting Started
 
