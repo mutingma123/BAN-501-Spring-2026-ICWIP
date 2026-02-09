@@ -51,7 +51,6 @@ def _():
         recall_score,
         roc_auc_score,
         roc_curve,
-        sm,
         smf,
         train_test_split,
     )
@@ -220,8 +219,8 @@ def _(
     categorical_features,
     numeric_features,
     smf,
-    y_train,
     y_test,
+    y_train,
 ):
     # Create training DataFrame with target column
     _train_df = X_train.to_pandas()
@@ -303,7 +302,7 @@ def _(
 
     print(f"Tree depth: {dt_grid_model.get_depth()}")
     print(f"Number of leaves: {dt_grid_model.get_n_leaves()}")
-    return dt_grid_model, dt_grid_pred, dt_grid_proba
+    return dt_grid_pred, dt_grid_proba
 
 
 @app.cell(hide_code=True)
@@ -400,9 +399,9 @@ def _(
     # Define parameter grid
     _param_grid = {
         "n_estimators": [100, 200],
-        "max_depth": [5, 7, 10, 15],
-        "min_samples_split": [2, 5, 10],
-        "min_samples_leaf": [1, 2, 4],
+        "max_depth": [5, 7, 10],
+        "min_samples_split": [2, 4],
+        "min_samples_leaf": [2, 4],
         "max_features": ["sqrt", "log2"],
     }
 
@@ -431,7 +430,7 @@ def _(
     # Predict on test set
     rf_grid_proba = rf_grid_model.predict_proba(X_test_encoded)[:, 1]
     rf_grid_pred = rf_grid_model.predict(X_test_encoded)
-    return rf_grid_model, rf_grid_pred, rf_grid_proba
+    return rf_grid_pred, rf_grid_proba
 
 
 @app.cell(hide_code=True)
@@ -465,7 +464,7 @@ def _(
                 "max_features", ["sqrt", "log2"],
             ),
             "random_state": 42,
-            "n_jobs": 1,
+            "n_jobs": -1,
         }
         _clf = RandomForestClassifier(**_params)
         _scores = cross_val_score(
