@@ -9,7 +9,7 @@ Course materials for BAN-501 featuring interactive notebooks built with [marimo]
 1. `1-linear-regression.py` — Hill-climbing optimization on synthetic data, statsmodels verification
 2. `2-lasso-ridge-regression.py` — Ridge, Lasso, Elastic Net on Ames Housing (regression)
 3. `3-logistic-regression.py` — Binary classification with statsmodels on bank marketing data
-4. `4-decision-trees.py` — Decision trees with GridSearchCV, logistic regression comparison, permutation importance
+4. `4-tree-based-models.py` — Decision trees and random forests with GridSearchCV and Optuna, logistic regression comparison, permutation importance
 5. `decision-trees.py` — Variant focusing on tree visualization (export_text, plot_tree)
 
 Concept slides live in `concept-slides/beamer/` as LaTeX Beamer source, with compiled PDFs in `concept-slides/`.
