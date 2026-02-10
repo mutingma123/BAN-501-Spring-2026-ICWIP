@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.19.4"
+__generated_with = "0.19.8"
 app = marimo.App(width="full")
 
 
@@ -355,6 +355,7 @@ def _(
         _dt_objective,
         n_trials=100,
         show_progress_bar=True,
+        n_jobs=-1,
     )
 
     print(f"Best parameters: {_dt_study.best_params}")
