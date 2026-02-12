@@ -32,7 +32,7 @@ def _():
 
     optuna.logging.set_verbosity(optuna.logging.WARNING)
     sns.set_style("whitegrid")
-    return OneHotEncoder, cross_val_score, mo, pl, train_test_split
+    return OneHotEncoder, mo, pl, train_test_split
 
 
 @app.cell(hide_code=True)
@@ -180,6 +180,57 @@ def _(
     return X_test_encoded, X_train_encoded
 
 
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Assignment: Build a Random Forest from Scratch
+
+    In this assignment you will implement a random forest classifier **from scratch** using
+    `DecisionTreeClassifier` as the base learner, tune it with Optuna, and compare it against an
+    Optuna-optimized single decision tree.
+
+    ### Task 1 — From-Scratch Random Forest
+
+    Build a function that implements the core random forest algorithm:
+
+    1. **Bootstrap sampling** — For each tree, draw a random sample *with replacement* from the
+       training data (same size as the original training set).
+    2. **Fit individual trees** — Train a `DecisionTreeClassifier` on each bootstrap sample.
+    3. **Aggregate predictions** — For each test observation, collect the predicted *probabilities*
+       from every tree and average them to produce the ensemble's prediction.
+
+    ### Task 2 — Optuna Hyperparameter Tuning
+
+    Use Optuna to optimize hyperparameters for **both** models. Use 5-fold cross-validated AUC
+    (`scoring="roc_auc"`) as the objective.
+
+    **Single decision tree — suggested parameter ranges:**
+
+    | Parameter            | Range / Choices                |
+    |----------------------|-------------------------------|
+    | `max_depth`          | 2 – 20 (int)                  |
+    | `min_samples_split`  | 2 – 20 (int)                  |
+    | `min_samples_leaf`   | 1 – 10 (int)                  |
+    | `max_features`       | `"sqrt"`, `"log2"`, `None`    |
+
+    **From-scratch random forest — suggested parameter ranges:**
+
+    All of the single-tree parameters above, plus:
+
+    | Parameter            | Range / Choices                |
+    |----------------------|-------------------------------|
+    | `n_estimators`       | 50 – 300 (int)                |
+
+    ### Task 3 — Compare Performance
+
+    Evaluate both tuned models on the **test set** and compare:
+
+    - ROC AUC
+    - Any other metrics you find informative (accuracy, precision, recall, F1, etc.)
+    """)
+    return
+
+
 @app.cell
 def _(X_test_encoded, X_train_encoded, y_test, y_train):
     print(f' - {X_train_encoded.shape = }')
@@ -190,8 +241,7 @@ def _(X_test_encoded, X_train_encoded, y_test, y_train):
 
 
 @app.cell
-def _(cross_val_score):
-    cross_val_score
+def _():
     return
 
 
