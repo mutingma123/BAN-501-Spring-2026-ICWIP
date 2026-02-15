@@ -35,27 +35,11 @@ def _():
     optuna.logging.set_verbosity(optuna.logging.WARNING)
     sns.set_style("whitegrid")
     return (
-        ConfusionMatrixDisplay,
         DecisionTreeClassifier,
-        GridSearchCV,
         OneHotEncoder,
-        RandomForestClassifier,
-        accuracy_score,
-        cross_val_score,
-        f1_score,
         mo,
         np,
-        optuna,
-        permutation_importance,
         pl,
-        plt,
-        precision_score,
-        recall_score,
-        roc_auc_score,
-        roc_curve,
-        sm,
-        smf,
-        sns,
         tqdm,
         train_test_split,
     )
@@ -274,7 +258,7 @@ def _(DecisionTreeClassifier, np, tqdm):
         seed: int = 42,
     ):
         _n = len(x_array)
-    
+
         np.random.seed(seed)
         selected_indices = np.random.choice(
             a=range(_n),
@@ -303,7 +287,7 @@ def _(DecisionTreeClassifier, np, tqdm):
                 seed=_idx,
             )
             _tree_params = {**dt_params, 'random_state': _idx}
-        
+
             dt = DecisionTreeClassifier(**_tree_params)
             dt.fit(bootstrap_x, bootstrap_y)
             random_forest_trees[_idx] = dt
@@ -320,7 +304,6 @@ def _(X_train_encoded, fit_random_forest, y_train):
         y_array=y_train,
         n_estimators=25,
     )
-    random_forest_trees
     return (random_forest_trees,)
 
 
@@ -332,6 +315,12 @@ def _(X_test_encoded, np, random_forest_trees, tqdm):
         _all_proba.append(_proba)
 
     positive_probabilities = np.mean(_all_proba, axis=0)
+    return (positive_probabilities,)
+
+
+@app.cell
+def _(positive_probabilities):
+    positive_probabilities
     return
 
 
