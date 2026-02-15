@@ -35,11 +35,27 @@ def _():
     optuna.logging.set_verbosity(optuna.logging.WARNING)
     sns.set_style("whitegrid")
     return (
+        ConfusionMatrixDisplay,
         DecisionTreeClassifier,
+        GridSearchCV,
         OneHotEncoder,
+        RandomForestClassifier,
+        accuracy_score,
+        cross_val_score,
+        f1_score,
         mo,
         np,
+        optuna,
+        permutation_importance,
         pl,
+        plt,
+        precision_score,
+        recall_score,
+        roc_auc_score,
+        roc_curve,
+        sm,
+        smf,
+        sns,
         tqdm,
         train_test_split,
     )
@@ -251,12 +267,6 @@ def _(X_test_encoded, X_train_encoded, y_test, y_train):
 
 
 @app.cell
-def _(X_train_encoded, pl):
-    temp = pl.DataFrame(X_train_encoded)
-    return
-
-
-@app.cell
 def _(DecisionTreeClassifier, np, tqdm):
     def get_bootstrap_samples(
         x_array: np.ndarray,
@@ -277,22 +287,24 @@ def _(DecisionTreeClassifier, np, tqdm):
 
     def fit_random_forest(
         x_array: np.ndarray,
-        y_array: np.ndarry,
+        y_array: np.ndarray,
         n_estimators: int = 25,
-        dt_params: dict = dict(),
+        dt_params: dict | None = None,
     ):
+        if dt_params is None:
+            dt_params = {}
 
         random_forest_trees = {}
         for _idx in tqdm(range(n_estimators)):
-    
+
             bootstrap_x, bootstrap_y = get_bootstrap_samples(
-                x_array=x_array, 
+                x_array=x_array,
                 y_array=y_array,
                 seed=_idx,
             )
-            dt_params.update({'random_state': _idx})
+            _tree_params = {**dt_params, 'random_state': _idx}
         
-            dt = DecisionTreeClassifier(**dt_params)
+            dt = DecisionTreeClassifier(**_tree_params)
             dt.fit(bootstrap_x, bootstrap_y)
             random_forest_trees[_idx] = dt
 
@@ -303,39 +315,23 @@ def _(DecisionTreeClassifier, np, tqdm):
 
 @app.cell
 def _(X_train_encoded, fit_random_forest, y_train):
-    _temp = fit_random_forest(
+    random_forest_trees = fit_random_forest(
         x_array=X_train_encoded,
         y_array=y_train,
         n_estimators=25,
     )
-    _temp
-    return
+    random_forest_trees
+    return (random_forest_trees,)
 
 
 @app.cell
-def _(X_test_encoded, pl, random_forest_trees, tqdm):
-    n_estimators = 100
-
-
-
-
-    random_forest_predictions = {}
+def _(X_test_encoded, np, random_forest_trees, tqdm):
+    _all_proba = []
     for _tree_idx, _current_tree in tqdm(random_forest_trees.items()):
-        _predictions = _current_tree.predict(X_test_encoded)
-        random_forest_predictions[f'tree_{_tree_idx}'] = _predictions
+        _proba = _current_tree.predict_proba(X_test_encoded)[:, 1]
+        _all_proba.append(_proba)
 
-    random_forest_predictions = pl.DataFrame(
-        random_forest_predictions
-    )
-    _columns = random_forest_predictions.shape[1]
-    
-    random_forest_predictions = random_forest_predictions.with_columns(
-        sum = pl.sum_horizontal(pl.all()),
-    ).with_columns(
-        proportion = pl.col('sum')/_columns
-    )
-
-    positive_probabilities = random_forest_predictions['proportion'].to_numpy()
+    positive_probabilities = np.mean(_all_proba, axis=0)
     return
 
 
