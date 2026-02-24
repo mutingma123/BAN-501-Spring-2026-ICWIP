@@ -5,6 +5,12 @@ name = "BAN-501-Spring-2026-ICWIP"
 platforms = ["linux-64", "win-64", "osx-64", "osx-arm64"]
 version = "0.1.0"
 
+[feature.gpu.system-requirements]
+cuda = "13.0"
+
+[feature.cpu.dependencies]
+pytorch-cpu = "*"
+
 [tasks]
 
 [dependencies]
@@ -23,3 +29,10 @@ marimo = ">=0.20.1,<0.21"
 xgboost = ">=3.2.0,<4"
 optuna = ">=4.7.0,<5"
 pandoc = ">=3.9,<4"
+
+[feature.gpu.dependencies]
+pytorch-gpu = "*"
+
+[environments]
+default = ["cpu"]
+gpu = ["gpu"]
