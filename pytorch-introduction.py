@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.20.1"
+__generated_with = "0.20.2"
 app = marimo.App(width="full")
 
 
@@ -42,7 +42,6 @@ def _():
         plt,
         precision_score,
         recall_score,
-        sns,
         torch,
         train_test_split,
     )
@@ -118,7 +117,7 @@ def _(np, pl, train_test_split):
         stratify=_y,
         random_state=42,
     )
-    return X_train, X_test, y_train, y_test
+    return X_test, X_train, y_test, y_train
 
 
 @app.cell
@@ -131,7 +130,10 @@ def _(X_train, np, plt, y_train):
 
     _rng = np.random.default_rng(seed=42)
     for _ax in _axes.flat:
-        _idx = _rng.integers(low=0, high=len(X_train))
+        _idx = _rng.integers(
+            low=0,
+            high=len(X_train),
+        )
         _ax.imshow(
             X_train[_idx].reshape(28, 28),
             cmap="gray",
@@ -163,7 +165,7 @@ def _(StandardScaler, X_test, X_train):
 
     X_train_scaled = _scaler.transform(X_train)
     X_test_scaled = _scaler.transform(X_test)
-    return X_train_scaled, X_test_scaled
+    return X_test_scaled, X_train_scaled
 
 
 @app.cell(hide_code=True)
@@ -194,10 +196,22 @@ def _(
     y_test,
     y_train,
 ):
-    _X_train_tensor = torch.tensor(X_train_scaled, dtype=torch.float32)
-    _y_train_tensor = torch.tensor(y_train, dtype=torch.long)
-    X_test_tensor = torch.tensor(X_test_scaled, dtype=torch.float32)
-    y_test_tensor = torch.tensor(y_test, dtype=torch.long)
+    _X_train_tensor = torch.tensor(
+        X_train_scaled,
+        dtype=torch.float32,
+    )
+    _y_train_tensor = torch.tensor(
+        y_train,
+        dtype=torch.long,
+    )
+    X_test_tensor = torch.tensor(
+        X_test_scaled,
+        dtype=torch.float32,
+    )
+    y_test_tensor = torch.tensor(
+        y_test,
+        dtype=torch.long,
+    )
 
     _train_dataset = TensorDataset(_X_train_tensor, _y_train_tensor)
     _test_dataset = TensorDataset(X_test_tensor, y_test_tensor)
@@ -213,7 +227,7 @@ def _(
         batch_size=64,
         shuffle=False,
     )
-    return X_test_tensor, train_loader, test_loader, y_test_tensor
+    return X_test_tensor, test_loader, train_loader
 
 
 @app.cell(hide_code=True)
@@ -263,7 +277,7 @@ def _(nn, torch):
 
     torch.manual_seed(42)
     model = MNISTClassifier()
-    return MNISTClassifier, model
+    return (model,)
 
 
 @app.cell(hide_code=True)
@@ -356,10 +370,10 @@ def _(X_test_tensor, model, nn, test_loader, torch, train_loader):
         nn_predictions = _logits.argmax(dim=1).numpy()
     return (
         nn_predictions,
-        train_losses,
-        val_losses,
         train_accuracies,
+        train_losses,
         val_accuracies,
+        val_losses,
     )
 
 
@@ -388,15 +402,43 @@ def _(plt, train_accuracies, train_losses, val_accuracies, val_losses):
 
     _epochs = range(1, len(train_losses) + 1)
 
-    _ax1.plot(_epochs, train_losses, label="Train", marker="o", markersize=4)
-    _ax1.plot(_epochs, val_losses, label="Validation", marker="s", markersize=4)
+    _ax1.plot(
+        _epochs,
+        train_losses,
+        label="Train",
+        marker="o",
+        markersize=4,
+        color="blue",
+    )
+    _ax1.plot(
+        _epochs,
+        val_losses,
+        label="Validation",
+        marker="s",
+        markersize=4,
+        color="orange",
+    )
     _ax1.set_xlabel("Epoch")
     _ax1.set_ylabel("Loss")
     _ax1.set_title("Loss over Epochs")
     _ax1.legend()
 
-    _ax2.plot(_epochs, train_accuracies, label="Train", marker="o", markersize=4)
-    _ax2.plot(_epochs, val_accuracies, label="Validation", marker="s", markersize=4)
+    _ax2.plot(
+        _epochs,
+        train_accuracies,
+        label="Train",
+        marker="o",
+        markersize=4,
+        color="blue",
+    )
+    _ax2.plot(
+        _epochs,
+        val_accuracies,
+        label="Validation",
+        marker="s",
+        markersize=4,
+        color="orange",
+    )
     _ax2.set_xlabel("Epoch")
     _ax2.set_ylabel("Accuracy")
     _ax2.set_title("Accuracy over Epochs")
@@ -404,6 +446,34 @@ def _(plt, train_accuracies, train_losses, val_accuracies, val_losses):
 
     plt.tight_layout()
     plt.show()
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ### Why Does Validation Loss Increase While Accuracy Stays High?
+
+    You may notice that validation loss rises sharply in later epochs even though validation
+    accuracy remains stable. This is expected and reflects a key distinction:
+
+    - **Accuracy** only depends on the argmax — whether the highest logit corresponds to the
+      correct class.
+    - **Cross-entropy loss** depends on the full predicted probability distribution — it
+      penalizes *how confident* the model is, not just whether the top prediction is correct.
+
+    As training continues without regularization, the model's logits grow larger in magnitude,
+    making predictions increasingly overconfident. For correctly classified examples this has
+    little effect on accuracy, but for the small number of misclassified examples the model is
+    now *very confident and very wrong*. Cross-entropy penalizes these cases heavily, driving
+    the validation loss upward.
+
+    This is a classic sign of **overfitting** and can be mitigated with:
+
+    - **Early stopping** — halt training when validation loss begins to increase
+    - **Dropout** — add `nn.Dropout` layers between hidden layers to prevent co-adaptation
+    - **Weight decay** — pass `weight_decay=1e-4` to the optimizer to penalize large weights
+    """)
     return
 
 
@@ -500,13 +570,7 @@ def _(mo):
 
 
 @app.cell
-def _(
-    ConfusionMatrixDisplay,
-    nn_predictions,
-    plt,
-    rf_predictions,
-    y_test,
-):
+def _(ConfusionMatrixDisplay, nn_predictions, plt, rf_predictions, y_test):
     _models = [
         ("Neural Network", nn_predictions),
         ("Random Forest", rf_predictions),
