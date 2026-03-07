@@ -23,11 +23,10 @@ def _():
         recall_score,
     )
     from sklearn.model_selection import train_test_split
-    from sklearn.preprocessing import StandardScaler
     from torch.utils.data import DataLoader, TensorDataset
 
     sns.set_style("whitegrid")
-    return StandardScaler, mo, np, pl, plt, train_test_split
+    return mo, np, pl, plt, train_test_split
 
 
 @app.cell(hide_code=True)
@@ -52,7 +51,7 @@ def _(mo):
     mo.md(r"""
     ## What is PyTorch?
 
-    PyTorch is an open-source deep learning framework built around three core ideas:
+    PyTorch is an open-source deep learning framework built around four core ideas:
 
     - **Tensors** — multi-dimensional arrays (like NumPy arrays) that can run on GPUs
     - **Autograd** — automatic differentiation that tracks operations on tensors and computes
@@ -80,7 +79,7 @@ def _(mo):
     MNIST contains 70,000 grayscale images of handwritten digits (0–9). Each image is
     28x28 pixels, flattened into a vector of **784 features**. This is the same dataset
     used in the dimensionality reduction notebook, but here we use the full dataset with
-    a stratified 80/20 train/test split.
+    a stratified 80/10/10 train/validation/test split.
     """)
     return
 
@@ -90,17 +89,24 @@ def _(np, pl, train_test_split):
     _features = pl.read_parquet("data/MNIST/mnist_features.parquet")
     _targets = pl.read_parquet("data/MNIST/mnist_target.parquet")
 
-    _X = _features.to_numpy().astype(np.float64)
+    _X = _features.to_numpy().astype(np.float64) / 255.0
     _y = _targets.to_numpy().ravel().astype(np.int64)
 
-    X_train, X_test, y_train, y_test = train_test_split(
+    X_train, _X_temp, y_train, _y_temp = train_test_split(
         _X,
         _y,
         test_size=0.2,
         stratify=_y,
         random_state=42,
     )
-    return X_test, X_train, y_train
+    X_val, X_test, y_val, y_test = train_test_split(
+        _X_temp,
+        _y_temp,
+        test_size=0.5,
+        stratify=_y_temp,
+        random_state=42,
+    )
+    return X_test, X_train, X_val, y_test, y_train, y_val
 
 
 @app.cell
@@ -134,20 +140,11 @@ def _(mo):
     mo.md(r"""
     ## Feature Scaling
 
-    Neural networks are sensitive to the scale of input features. Pixel values range from
-    0 to 255, so we apply `StandardScaler` to center each feature at zero with unit variance.
-    The scaler is fit on the training data only to prevent data leakage.
+    Neural networks are sensitive to the scale of input features. Pixel values originally
+    range from 0 to 255, so we divide by 255 to rescale them to [0, 1]. This is simpler
+    than standardization and well-suited for image data where the value bounds are known.
+    The normalization is applied during data loading above.
     """)
-    return
-
-
-@app.cell
-def _(StandardScaler, X_test, X_train):
-    _scaler = StandardScaler()
-    _scaler.fit(X_train)
-
-    X_train_scaled = _scaler.transform(X_train)
-    X_test_scaled = _scaler.transform(X_test)
     return
 
 

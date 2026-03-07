@@ -23,7 +23,6 @@ def _():
         recall_score,
     )
     from sklearn.model_selection import train_test_split
-    from sklearn.preprocessing import StandardScaler
     from torch.utils.data import DataLoader, TensorDataset
 
     sns.set_style("whitegrid")
@@ -31,7 +30,6 @@ def _():
         ConfusionMatrixDisplay,
         DataLoader,
         RandomForestClassifier,
-        StandardScaler,
         TensorDataset,
         accuracy_score,
         f1_score,
@@ -69,7 +67,7 @@ def _(mo):
     mo.md(r"""
     ## What is PyTorch?
 
-    PyTorch is an open-source deep learning framework built around three core ideas:
+    PyTorch is an open-source deep learning framework built around four core ideas:
 
     - **Tensors** — multi-dimensional arrays (like NumPy arrays) that can run on GPUs
     - **Autograd** — automatic differentiation that tracks operations on tensors and computes
@@ -97,7 +95,7 @@ def _(mo):
     MNIST contains 70,000 grayscale images of handwritten digits (0–9). Each image is
     28x28 pixels, flattened into a vector of **784 features**. This is the same dataset
     used in the dimensionality reduction notebook, but here we use the full dataset with
-    a stratified 80/20 train/test split.
+    a stratified 80/10/10 train/validation/test split.
     """)
     return
 
@@ -107,17 +105,24 @@ def _(np, pl, train_test_split):
     _features = pl.read_parquet("data/MNIST/mnist_features.parquet")
     _targets = pl.read_parquet("data/MNIST/mnist_target.parquet")
 
-    _X = _features.to_numpy().astype(np.float64)
+    _X = _features.to_numpy().astype(np.float64) / 255.0
     _y = _targets.to_numpy().ravel().astype(np.int64)
 
-    X_train, X_test, y_train, y_test = train_test_split(
+    X_train, _X_temp, y_train, _y_temp = train_test_split(
         _X,
         _y,
         test_size=0.2,
         stratify=_y,
         random_state=42,
     )
-    return X_test, X_train, y_test, y_train
+    X_val, X_test, y_val, y_test = train_test_split(
+        _X_temp,
+        _y_temp,
+        test_size=0.5,
+        stratify=_y_temp,
+        random_state=42,
+    )
+    return X_test, X_train, X_val, y_test, y_train, y_val
 
 
 @app.cell
@@ -151,21 +156,12 @@ def _(mo):
     mo.md(r"""
     ## Feature Scaling
 
-    Neural networks are sensitive to the scale of input features. Pixel values range from
-    0 to 255, so we apply `StandardScaler` to center each feature at zero with unit variance.
-    The scaler is fit on the training data only to prevent data leakage.
+    Neural networks are sensitive to the scale of input features. Pixel values originally
+    range from 0 to 255, so we divide by 255 to rescale them to [0, 1]. This is simpler
+    than standardization and well-suited for image data where the value bounds are known.
+    The normalization is applied during data loading above.
     """)
     return
-
-
-@app.cell
-def _(StandardScaler, X_test, X_train):
-    _scaler = StandardScaler()
-    _scaler.fit(X_train)
-
-    X_train_scaled = _scaler.transform(X_train)
-    X_test_scaled = _scaler.transform(X_test)
-    return X_test_scaled, X_train_scaled
 
 
 @app.cell(hide_code=True)
@@ -190,22 +186,32 @@ def _(mo):
 def _(
     DataLoader,
     TensorDataset,
-    X_test_scaled,
-    X_train_scaled,
+    X_test,
+    X_train,
+    X_val,
     torch,
     y_test,
     y_train,
+    y_val,
 ):
     _X_train_tensor = torch.tensor(
-        X_train_scaled,
+        X_train,
         dtype=torch.float32,
     )
     _y_train_tensor = torch.tensor(
         y_train,
         dtype=torch.long,
     )
+    _X_val_tensor = torch.tensor(
+        X_val,
+        dtype=torch.float32,
+    )
+    _y_val_tensor = torch.tensor(
+        y_val,
+        dtype=torch.long,
+    )
     X_test_tensor = torch.tensor(
-        X_test_scaled,
+        X_test,
         dtype=torch.float32,
     )
     y_test_tensor = torch.tensor(
@@ -214,6 +220,7 @@ def _(
     )
 
     _train_dataset = TensorDataset(_X_train_tensor, _y_train_tensor)
+    _val_dataset = TensorDataset(_X_val_tensor, _y_val_tensor)
     _test_dataset = TensorDataset(X_test_tensor, y_test_tensor)
 
     train_loader = DataLoader(
@@ -222,12 +229,12 @@ def _(
         shuffle=True,
         generator=torch.Generator().manual_seed(42),
     )
-    test_loader = DataLoader(
-        dataset=_test_dataset,
+    val_loader = DataLoader(
+        dataset=_val_dataset,
         batch_size=64,
         shuffle=False,
     )
-    return X_test_tensor, test_loader, train_loader
+    return X_test_tensor, train_loader, val_loader
 
 
 @app.cell(hide_code=True)
@@ -304,7 +311,7 @@ def _(mo):
 
 
 @app.cell
-def _(X_test_tensor, model, nn, test_loader, torch, train_loader):
+def _(X_test_tensor, model, nn, torch, train_loader, val_loader):
     _criterion = nn.CrossEntropyLoss()
     _optimizer = torch.optim.Adam(
         params=model.parameters(),
@@ -347,7 +354,7 @@ def _(X_test_tensor, model, nn, test_loader, torch, train_loader):
         _val_total = 0
 
         with torch.no_grad():
-            for _X_batch, _y_batch in test_loader:
+            for _X_batch, _y_batch in val_loader:
                 _outputs = model(_X_batch)
                 _loss = _criterion(_outputs, _y_batch)
                 _val_loss += _loss.item() * _X_batch.size(0)
@@ -452,45 +459,17 @@ def _(plt, train_accuracies, train_losses, val_accuracies, val_losses):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    ### Why Does Validation Loss Increase While Accuracy Stays High?
-
-    You may notice that validation loss rises sharply in later epochs even though validation
-    accuracy remains stable. This is expected and reflects a key distinction:
-
-    - **Accuracy** only depends on the argmax — whether the highest logit corresponds to the
-      correct class.
-    - **Cross-entropy loss** depends on the full predicted probability distribution — it
-      penalizes *how confident* the model is, not just whether the top prediction is correct.
-
-    As training continues without regularization, the model's logits grow larger in magnitude,
-    making predictions increasingly overconfident. For correctly classified examples this has
-    little effect on accuracy, but for the small number of misclassified examples the model is
-    now *very confident and very wrong*. Cross-entropy penalizes these cases heavily, driving
-    the validation loss upward.
-
-    This is a classic sign of **overfitting** and can be mitigated with:
-
-    - **Early stopping** — halt training when validation loss begins to increase
-    - **Dropout** — add `nn.Dropout` layers between hidden layers to prevent co-adaptation
-    - **Weight decay** — pass `weight_decay=1e-4` to the optimizer to penalize large weights
-    """)
-    return
-
-
-@app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""
     ## Random Forest Baseline
 
     To put the neural network's performance in context, we train a Random Forest classifier
-    on the same scaled features. This connects back to the tree-based models covered in
+    on the same normalized features. This connects back to the tree-based models covered in
     earlier notebooks and provides a non-neural baseline for comparison.
     """)
     return
 
 
 @app.cell
-def _(RandomForestClassifier, X_test_scaled, X_train_scaled, y_train):
+def _(RandomForestClassifier, X_test, X_train, y_train):
     _rf_model = RandomForestClassifier(
         n_estimators=200,
         max_depth=20,
@@ -500,9 +479,9 @@ def _(RandomForestClassifier, X_test_scaled, X_train_scaled, y_train):
         random_state=42,
         n_jobs=-1,
     )
-    _rf_model.fit(X_train_scaled, y_train)
+    _rf_model.fit(X_train, y_train)
 
-    rf_predictions = _rf_model.predict(X_test_scaled)
+    rf_predictions = _rf_model.predict(X_test)
     return (rf_predictions,)
 
 
@@ -603,7 +582,7 @@ def _(mo):
 
     | | Neural Network | Random Forest |
     |---|---|---|
-    | **Approach** | Learns feature representations via backpropagation | Splits on raw/scaled features directly |
+    | **Approach** | Learns feature representations via backpropagation | Splits on raw features directly |
     | **Hyperparameters** | Architecture, learning rate, epochs, batch size | Number of trees, max depth, split criteria |
     | **Training** | Iterative gradient descent over mini-batches | Parallel tree construction (embarrassingly parallel) |
     | **Scalability** | Scales to large datasets; benefits from GPUs | Memory-intensive with many trees and features |
