@@ -26,7 +26,17 @@ def _():
     from torch.utils.data import DataLoader, TensorDataset
 
     sns.set_style("whitegrid")
-    return mo, np, pl, plt, train_test_split
+    return (
+        DataLoader,
+        TensorDataset,
+        mo,
+        nn,
+        np,
+        pl,
+        plt,
+        torch,
+        train_test_split,
+    )
 
 
 @app.cell(hide_code=True)
@@ -163,6 +173,146 @@ def _(mo):
     step rather than the entire dataset. This provides a good balance between the noisy
     gradients of single-sample updates and the computational cost of full-batch updates.
     """)
+    return
+
+
+@app.cell
+def _(
+    DataLoader,
+    TensorDataset,
+    X_test,
+    X_train,
+    X_val,
+    torch,
+    y_test,
+    y_train,
+    y_val,
+):
+    _X_train_tensor = torch.tensor(
+        X_train,
+        dtype=torch.float32,
+    )
+    _y_train_tensor = torch.tensor(
+        y_train,
+        dtype=torch.long,
+    )
+
+    _X_test_tensor = torch.tensor(
+        X_test,
+        dtype=torch.float32,
+    )
+    _y_test_tensor = torch.tensor(
+        y_test,
+        dtype=torch.long,
+    )
+
+    _X_val_tensor = torch.tensor(
+        X_val,
+        dtype=torch.float32,
+    )
+    _y_val_tensor = torch.tensor(
+        y_val,
+        dtype=torch.long,
+    )
+
+    _train_dataset = TensorDataset(_X_train_tensor, _y_train_tensor)
+    _test_dataset = TensorDataset(_X_test_tensor, _y_test_tensor)
+    _val_dataset = TensorDataset(_X_val_tensor, _y_val_tensor)
+
+    train_loader = DataLoader(
+        dataset=_train_dataset,
+        batch_size=64,
+        shuffle=True,
+        generator=torch.Generator().manual_seed(42)
+    )
+    val_loader = DataLoader(
+        dataset=_val_dataset,
+        batch_size=64,
+        shuffle=True,
+        generator=torch.Generator().manual_seed(42)
+    )
+    return train_loader, val_loader
+
+
+@app.cell
+def _(nn, torch):
+    class MNISTClassifier(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.network = nn.Sequential(
+                nn.Linear(784, 128),
+                nn.ReLU(),
+                nn.Linear(128, 64),
+                nn.ReLU(),
+                nn.Linear(64, 10),
+            )
+    
+        def forward(self, x):
+            return self.network(x)
+
+    torch.manual_seed(42)
+    model = MNISTClassifier()
+    return (model,)
+
+
+@app.cell
+def _(model, nn, torch, train_loader, val_loader):
+    _criterion = nn.CrossEntropyLoss()
+    _optimizer = torch.optim.Adam(
+        params=model.parameters(),
+        lr=0.001
+    )
+
+    NUM_EPOCHS = 20
+
+    train_losses = []
+    val_losses = []
+    train_accuracies = []
+    val_accuracies = []
+
+    for _epoch in range(NUM_EPOCHS):
+        model.train()
+
+        _running_loss = 0.0
+        _correct = 0
+        _total = 0
+        for x_batch, y_batch in train_loader:
+            _optimizer.zero_grad()
+            _outputs = model(x_batch)
+            _loss = _criterion(_outputs, y_batch)
+            _loss.backward()
+            _optimizer.step()
+
+            _running_loss += _loss.item() * x_batch.size(0)
+            _predicted = _outputs.argmax(dim=1)
+            _correct += (_predicted == y_batch).sum().item()
+            _total = y_batch.size(0)
+
+        _train_loss = _running_loss / _total
+        _train_acc = _correct / _total
+        train_losses.append(_train_loss)
+        train_accuracies.append(_train_acc)
+
+        model.eval()
+
+        _val_loss = 0.0
+        _val_correct = 0
+        _val_total = 0
+
+        with torch.no_grad():
+            for x_batch, y_batch in val_loader:
+                _outputs = model(x_batch)
+                _val_loss = _criterion(_outputs, y_batch)    
+                _predicted = _outputs.argmax(dim=1)
+                _val_correct += (_predicted == y_batch).sum().item()
+                _val_total = y_batch.size(0)
+
+        val_losses.append(_val_loss / _total)
+        val_accuracies.append(_val_correct / _total)
+
+        print(f'Epoch: {_epoch}')
+        print(f'Train Loss: {_train_loss}')
+        print(f'Val Loss: {_val_loss}')
     return
 
 
