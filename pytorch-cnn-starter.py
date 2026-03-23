@@ -507,28 +507,7 @@ def _(mo):
 @app.cell
 def _(device, nn, torch):
     class CNNClassifier(nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.conv_layers = nn.Sequential(
-                nn.Conv2d(1, 32, kernel_size=3), # output is 32 "channels" of 26 x 26
-                nn.ReLU(), # output is 32 "channels" of 26 x 26
-                nn.MaxPool2d(kernel_size=2), # output is 32 "channels" of 13 x 13
-                nn.Conv2d(32, 64, kernel_size=3), # output is 64 "channels" of 11 x 11
-                nn.ReLU(), # output is 64 "channels" of 11 x 11
-                nn.MaxPool2d(kernel_size=2), # output is 64 "channels" of 5 x 5
-            )
-            self.fc_layers = nn.Sequential(
-                nn.Linear(64 * 5 * 5, 128), # "flat" dimension to 128
-                nn.ReLU(),
-                nn.Linear(128, 10), # 128 to 10 output dimensions 
-            )
-
-        def forward(self, x):
-            x = x.view(-1, 1, 28, 28) # batch size, channels, height, width 
-            x = self.conv_layers(x)
-            x = x.view(x.size(0), -1) # batch size, "as long as needed"
-            x = self.fc_layers(x)
-            return x
+        ...
 
     torch.manual_seed(42)
     cnn_model = CNNClassifier().to(device)
