@@ -15,6 +15,9 @@ Course materials for BAN-501 featuring interactive notebooks built with [marimo]
 7. `7-dimensionality-reduction-demo.py` — PCA and PaCMAP demo on MNIST, Random Forest on reduced features
 8. `8-dimensionality-reduction.py` — Full dimensionality reduction pipeline on bank marketing data with PCA, PaCMAP, and classification
 9. `9-clustering.py` — K-Means and HDBSCAN on synthetic data (blobs, circles), density-based vs centroid-based comparison
+10. `10-pytorch-introduction.py` — Feedforward neural networks on MNIST with PyTorch
+11. `11-pytorch-cnn.py` — CNNs vs Feedforward Networks on MNIST
+12. `12-transfer-learning.py` — Fine-tuning pre-trained ResNet50 on selfie/non-selfie classification, model persistence
 
 Supporting files:
 - `_concurrency_helpers.py` — Shared functions (`is_prime`, `simulate_io_task`) and constants for notebook 6
@@ -102,9 +105,12 @@ def _(pl, plt):
 data/
 ├── regression/train.parquet                              # Ames Housing dataset
 ├── classification/playground-series-s5e8/train.parquet   # Bank marketing dataset
-└── MNIST/
-    ├── mnist_features.parquet                            # 784 pixel features
-    └── mnist_target.parquet                              # Digit labels
+├── MNIST/
+│   ├── mnist_features.parquet                            # 784 pixel features
+│   └── mnist_target.parquet                              # Digit labels
+└── selfie_data/
+    ├── Selfie/                                           # 3,931 selfie JPGs
+    └── NonSelfie/                                        # 3,931 non-selfie JPGs
 ```
 
 ## Concept Slides

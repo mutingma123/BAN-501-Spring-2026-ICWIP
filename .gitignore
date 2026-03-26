@@ -2,6 +2,7 @@
 *__pycache__/
 
 progress.txt
+data/selfie_*
 
 # pixi environments
 .pixi/*
@@ -19,3 +20,6 @@ progress.txt
 *.fls
 *.fdb_latexmk
 *.synctex.gz
+
+# PyTorch model checkpoints
+*.pth

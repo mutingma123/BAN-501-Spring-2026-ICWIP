@@ -32,6 +32,8 @@ marimo = ">=0.20.1,<0.21"
 xgboost = ">=3.2.0,<4"
 optuna = ">=4.7.0,<5"
 pandoc = ">=3.9,<4"
+torchvision = ">=0.25.0,<0.26"
+pillow = ">=12.1.1,<13"
 
 [feature.gpu.dependencies]
 pytorch-gpu = "*"
