@@ -4,18 +4,33 @@ __generated_with = "0.20.2"
 app = marimo.App(width="full")
 
 
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    # Transfer Learning: Fine-Tuning a Pretrained CNN
+
+    Training a deep convolutional network from scratch requires large datasets and substantial compute time. Transfer learning sidesteps both constraints by reusing a model that has already learned general visual features from a large corpus. In this notebook we take a ResNet50 backbone pretrained on ImageNet (1.2 million images, 1,000 classes) and attach a small classification head for a binary task: distinguishing selfies from non-selfies.
+
+    The workflow has three phases:
+
+    1. **Pretrained backbone + custom head** -- freeze the convolutional layers and replace the final classifier
+    2. **Fine-tuning** -- train only the new head while the frozen backbone extracts features
+    3. **Model persistence and inference** -- save the trained weights, reload them, and classify new images
+    """)
+    return
+
+
 @app.cell
 def _():
+    import marimo as mo
     from pathlib import Path
 
     import matplotlib.pyplot as plt
     import numpy as np
-    import pacmap
     import polars as pl
     import seaborn as sns
     import torch
     import torch.nn as nn
-    from sklearn.cluster import KMeans
     from sklearn.metrics import (
         ConfusionMatrixDisplay,
         accuracy_score,
@@ -42,16 +57,15 @@ def _():
         ConfusionMatrixDisplay,
         DataLoader,
         ImageFolder,
-        KMeans,
         Path,
         Subset,
         accuracy_score,
         device,
         f1_score,
+        mo,
         models,
         nn,
         np,
-        pacmap,
         pl,
         plt,
         precision_score,
@@ -64,12 +78,50 @@ def _():
     )
 
 
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Why Transfer Learning?
+
+    A CNN trained on ImageNet learns a hierarchy of visual features. Early layers detect edges and textures, middle layers combine those into shapes, and deep layers recognize object parts. These features transfer well to new image tasks because the low-level and mid-level patterns are shared across domains.
+
+    Rather than learning all of these features from our relatively small selfie dataset (~7,800 images), we keep the pretrained convolutional layers fixed and only train a lightweight classification head on top. This strategy offers two practical benefits. First, training is fast because gradient computation skips the frozen backbone entirely. Second, the model is less prone to overfitting because the vast majority of its parameters are not updated on our small dataset.
+
+    Formally, if the pretrained backbone is a function $g_\phi: \mathbb{R}^{3 \times 224 \times 224} \to \mathbb{R}^{d}$ with frozen parameters $\phi$, we learn only a linear classifier $h_\theta: \mathbb{R}^{d} \to \mathbb{R}^{K}$ by minimizing the cross-entropy loss over the training set:
+
+    $$
+    \mathcal{L}(\theta) = -\frac{1}{N}\sum_{i=1}^{N} \log \frac{\exp(h_\theta(g_\phi(\mathbf{x}_i))_{y_i})}{\sum_{k=1}^{K}\exp(h_\theta(g_\phi(\mathbf{x}_i))_k)}
+    $$
+
+    where $K=2$ (selfie vs. non-selfie) and only $\theta$ receives gradient updates.
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Data Loading and ImageNet Preprocessing
+
+    The pretrained backbone expects inputs that match the preprocessing it saw during pretraining. For ResNet50 trained on ImageNet, this means resizing images to 232 pixels on the shorter side, center-cropping to $224 \times 224$, converting to a tensor, and normalizing each color channel with the ImageNet training set statistics:
+
+    $$
+    \hat{x}_c = \frac{x_c - \mu_c}{\sigma_c}, \quad \mu = [0.485,\; 0.456,\; 0.406], \quad \sigma = [0.229,\; 0.224,\; 0.225]
+    $$
+
+    Skipping this normalization or using different statistics would produce activations the backbone was never calibrated for, degrading the quality of the extracted features.
+
+    The `ImageFolder` class reads images from a directory structure where each subfolder name becomes a class label. We then split the indices into stratified 80/10/10 partitions to preserve the class balance across training, validation, and test sets.
+    """)
+    return
+
+
 @app.cell
 def _(ImageFolder, np, train_test_split, transforms):
     # ImageNet channel means and stds -- must match the preprocessing
     # the backbone saw during pre-training
     imagenet_transform = transforms.Compose([
-        transforms.Resize(256),
+        transforms.Resize(232),
         transforms.CenterCrop(224),
         transforms.ToTensor(),
         transforms.Normalize(
@@ -110,6 +162,16 @@ def _(ImageFolder, np, train_test_split, transforms):
     return class_names, full_dataset, test_indices, train_indices, val_indices
 
 
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Sample Training Images
+
+    The images below are sampled from the training partition and un-normalized for display. Because the ImageNet transform normalizes each channel independently, we reverse that operation ($x_c = \hat{x}_c \cdot \sigma_c + \mu_c$) before rendering. The original pixel values are clipped to $[0, 1]$ to avoid display artifacts.
+    """)
+    return
+
+
 @app.cell
 def _(class_names, full_dataset, np, plt, train_indices):
     _rng = np.random.default_rng(seed=42)
@@ -139,6 +201,16 @@ def _(class_names, full_dataset, np, plt, train_indices):
 
     plt.tight_layout()
     plt.show()
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## DataLoaders
+
+    PyTorch `DataLoader` objects batch, shuffle, and iterate over the dataset during training. The training loader shuffles images each epoch so the model does not memorize the order of examples. Validation and test loaders iterate in a fixed order for reproducible evaluation. A batch size of 32 is a common starting point for image classification: small enough to fit in memory alongside the ResNet50 backbone, large enough to provide stable gradient estimates.
+    """)
     return
 
 
@@ -176,6 +248,20 @@ def _(
     return test_loader, train_loader, val_loader
 
 
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Model Architecture: Frozen Backbone + Trainable Head
+
+    ResNet50 is a 50-layer deep residual network with roughly 23.5 million parameters. Loading the `IMAGENET1K_V2` weights gives us a backbone that already produces rich feature representations for natural images.
+
+    We freeze every parameter in the backbone by setting `requires_grad = False`, which tells PyTorch to skip these parameters during backpropagation. The original classification head is a linear layer that maps the 2,048-dimensional feature vector to 1,000 ImageNet classes. We replace it with a new `nn.Linear(2048, 2)` layer whose weights are randomly initialized. Only this layer, with $2{,}048 \times 2 + 2 = 4{,}098$ trainable parameters, will be updated during fine-tuning.
+
+    This setup is sometimes called "linear probing" because we are fitting a linear classifier on top of frozen features. It is the simplest form of transfer learning and a natural first step before deciding whether to unfreeze deeper layers.
+    """)
+    return
+
+
 @app.cell
 def _(device, models, nn, torch):
     torch.manual_seed(42)
@@ -201,6 +287,20 @@ def _(device, models, nn, torch):
     print(f"Total parameters:     {_total_params:,}")
     print(f"Trainable parameters: {_trainable_params:,}")
     return (resnet_model,)
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Training and Evaluation Functions
+
+    The training loop follows the same structure as the previous notebooks: forward pass, loss computation, backward pass, optimizer step. Two details differ from training a model from scratch.
+
+    First, the optimizer receives only parameters where `requires_grad` is `True`. Passing the full parameter list would work but waste memory on optimizer state for frozen weights. Filtering up front keeps memory usage proportional to the trainable parameter count.
+
+    Second, mixed-precision training with `torch.amp.autocast` is used when the GPU supports `bfloat16`. The forward pass runs in lower precision for speed, while gradient accumulation remains in `float32` for numerical stability. On CPU this is a no-op.
+    """)
+    return
 
 
 @app.cell
@@ -317,6 +417,16 @@ def _(device, nn, np, torch, use_bfloat16):
     return evaluate_model, train_model
 
 
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Baseline: Random Head (No Training)
+
+    Before fine-tuning, the classification head contains random weights. The frozen backbone still extracts meaningful features, but the head maps them to class predictions arbitrarily. On a balanced binary task we expect roughly 50% accuracy, no better than a coin flip. This baseline establishes the starting point so we can measure how much the head learns during fine-tuning.
+    """)
+    return
+
+
 @app.cell
 def _(evaluate_model, np, resnet_model, test_loader):
     # Baseline: the randomly initialized head maps backbone features arbitrarily, expect ~50% accuracy
@@ -330,6 +440,16 @@ def _(evaluate_model, np, resnet_model, test_loader):
     return (baseline_results,)
 
 
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Fine-Tuning the Classification Head
+
+    We now train only the 4,098 parameters in the classification head. Because the backbone is frozen, each training epoch involves far less computation than training the full network. The optimizer (Adam, learning rate 0.001) updates the head weights while the backbone's 23.5 million parameters remain fixed throughout.
+    """)
+    return
+
+
 @app.cell
 def _(resnet_model, test_loader, train_loader, train_model, val_loader):
     # Fine-tune only the fc head; backbone stays frozen so each epoch is fast even on CPU
@@ -338,9 +458,19 @@ def _(resnet_model, test_loader, train_loader, train_model, val_loader):
         train_loader=train_loader,
         val_loader=val_loader,
         test_loader=test_loader,
-        num_epochs=1,
+        num_epochs=5,
     )
     return (finetuned_results,)
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Training Diagnostics
+
+    The plots below show loss and accuracy for both training and validation sets across epochs. Because only a small head is being trained on top of strong frozen features, convergence is typically rapid. Watch for validation loss diverging from training loss, which would indicate overfitting of the head.
+    """)
+    return
 
 
 @app.cell
@@ -397,6 +527,16 @@ def _(finetuned_results, plt):
 
     plt.tight_layout()
     plt.show()
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Results
+
+    The table below compares the random-head baseline against the fine-tuned model using accuracy, precision, recall, and F1 score on the held-out test set. Precision and recall are computed with the "Selfie" class as the positive label.
+    """)
     return
 
 
@@ -462,6 +602,16 @@ def _(
     return
 
 
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ### Confusion Matrices
+
+    The confusion matrices below provide a more detailed breakdown than scalar metrics. Each cell shows the count of predictions for a given (true class, predicted class) pair. Off-diagonal entries are misclassifications. Comparing the random-head matrix to the fine-tuned matrix illustrates how training the head concentrates predictions along the diagonal.
+    """)
+    return
+
+
 @app.cell
 def _(sns):
     sns.set_style('white')
@@ -499,6 +649,24 @@ def _(
 
     plt.tight_layout()
     plt.show()
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Model Persistence: Saving and Loading
+
+    After training, we need to persist the model so it can be reloaded for inference without retraining. PyTorch offers two approaches: saving the entire model object with `torch.save(model)`, or saving only the `state_dict` (an `OrderedDict` mapping layer names to their weight tensors). The `state_dict` approach is preferred because it produces smaller files, avoids pickling Python class definitions, and remains portable across code changes.
+
+    The save-and-load workflow has three steps:
+
+    1. **Save** the `state_dict` to a `.pth` file with `torch.save(model.state_dict(), path)`
+    2. **Rebuild** the architecture in code (same layers, same dimensions)
+    3. **Load** the saved weights into the fresh architecture with `model.load_state_dict(...)`
+
+    The architecture must match exactly at load time. If the saved model had a `Linear(2048, 2)` head but the loading code creates `Linear(2048, 10)`, PyTorch will raise a shape mismatch error.
+    """)
     return
 
 
@@ -577,6 +745,24 @@ def _(device, model_save_path, models, nn, torch):
     print(f"Device: {device}")
     print(f"Mode: eval (ready for inference)")
     return (loaded_model,)
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Inference with the Loaded Model
+
+    With the model loaded and set to evaluation mode (`model.eval()`), we can classify new images. Two patterns are shown below: single-image inference and batch inference.
+
+    For a single image, the key step is adding a batch dimension with `unsqueeze(0)`. PyTorch models always expect a batch dimension as the first axis, so a tensor of shape $(3, 224, 224)$ must become $(1, 3, 224, 224)$ before the forward pass. The model outputs raw logits, which are converted to class probabilities with the softmax function:
+
+    $$
+    P(y = k \mid \mathbf{x}) = \frac{\exp(z_k)}{\sum_{j=1}^{K} \exp(z_j)}
+    $$
+
+    For batch inference, the `DataLoader` already provides tensors with the batch dimension, so no reshaping is needed. Processing a full batch in one forward pass is more efficient than looping over individual images because it takes advantage of parallelism in matrix operations on both CPUs and GPUs.
+    """)
+    return
 
 
 @app.cell
@@ -718,166 +904,6 @@ def _(
             fontsize=9,
         )
         _ax.axis("off")
-
-    plt.tight_layout()
-    plt.show()
-    return
-
-
-@app.cell
-def _(device, nn, np, resnet_model, test_loader, torch, use_bfloat16):
-    # Embeddings are the 2048-dim vectors from the penultimate layer --
-    # the backbone's learned representation of each image
-    _autocast = torch.amp.autocast(
-        device_type=device.type,
-        dtype=torch.bfloat16,
-        enabled=use_bfloat16,
-    )
-
-    # nn.Identity() passes the backbone output through unchanged,
-    # bypassing the classification head
-    _original_fc = resnet_model.fc
-    resnet_model.fc = nn.Identity()
-
-    resnet_model.eval()
-    _all_embeddings = []
-    _all_labels = []
-
-    with torch.no_grad(), _autocast:
-        for _X_batch, _y_batch in test_loader:
-            _X_batch = _X_batch.to(device)
-            _emb = resnet_model(_X_batch)
-            _all_embeddings.append(_emb.cpu().float().numpy())
-            _all_labels.append(_y_batch.numpy())
-
-    # Restore the trained fc head so the model is usable for classification again
-    resnet_model.fc = _original_fc
-
-    embeddings = np.concatenate(_all_embeddings)
-    test_labels = np.concatenate(_all_labels)
-
-    print(f"Embedding shape: {embeddings.shape}")
-    print(f"Each image is now represented as a {embeddings.shape[1]}-dimensional vector")
-    return embeddings, test_labels
-
-
-@app.cell
-def _(class_names, embeddings, np, pacmap, plt, sns, test_labels):
-    # Project 2048-dim embeddings to 2D for visualization --
-    # shows how the fine-tuned backbone separates the two classes
-    _pacmap_model = pacmap.PaCMAP(n_components=2)
-    embeddings_2d = _pacmap_model.fit_transform(embeddings)
-
-    _label_names = np.array([class_names[_i] for _i in test_labels])
-
-    _fig, _ax = plt.subplots(figsize=(8, 5))
-
-    sns.scatterplot(
-        x=embeddings_2d[:, 0],
-        y=embeddings_2d[:, 1],
-        hue=_label_names,
-        palette={"NonSelfie": "steelblue", "Selfie": "coral"},
-        edgecolor="k",
-        alpha=0.75,
-        ax=_ax,
-    )
-    _ax.set_xlabel("PaCMAP 1")
-    _ax.set_ylabel("PaCMAP 2")
-    _ax.set_title("PaCMAP Projection of ResNet50 Embeddings (Test Set)")
-    _ax.legend(
-        title="Class",
-        bbox_to_anchor=(1.01, 1.01),
-        loc="upper left",
-    )
-
-    # Well-separated clusters here confirm the backbone learned
-    # discriminative visual features
-    plt.tight_layout()
-    plt.show()
-    return (embeddings_2d,)
-
-
-@app.cell
-def _(
-    KMeans,
-    accuracy_score,
-    class_names,
-    embeddings,
-    embeddings_2d,
-    finetuned_results,
-    np,
-    plt,
-    sns,
-    test_labels,
-):
-    # K-Means on the 2048-dim embeddings -- clustering in the original
-    # feature space, not the 2D projection
-    _kmeans = KMeans(
-        n_clusters=2,
-        random_state=42,
-        n_init=10,
-    )
-    _cluster_labels = _kmeans.fit_predict(embeddings)
-
-    # Cluster IDs are arbitrary, so we check both possible label alignments
-    _accuracy_direct = accuracy_score(test_labels, _cluster_labels)
-    _accuracy_flipped = accuracy_score(test_labels, 1 - _cluster_labels)
-    _cluster_accuracy = max(_accuracy_direct, _accuracy_flipped)
-
-    # Compare: unsupervised clustering accuracy vs supervised fine-tuned accuracy
-    _supervised_accuracy = accuracy_score(
-        finetuned_results["labels"],
-        finetuned_results["predictions"],
-    )
-    print(f"K-Means clustering accuracy (unsupervised): {_cluster_accuracy:.4f}")
-    print(f"Fine-tuned classifier accuracy (supervised): {_supervised_accuracy:.4f}")
-
-    # Use the better alignment for visualization
-    _aligned_labels = _cluster_labels if _accuracy_direct >= _accuracy_flipped else 1 - _cluster_labels
-    _label_names = np.array([class_names[_i] for _i in test_labels])
-    _cluster_names = np.array([class_names[_i] for _i in _aligned_labels])
-
-    _fig, (_ax1, _ax2) = plt.subplots(
-        nrows=1,
-        ncols=2,
-        figsize=(14, 5),
-    )
-
-    sns.scatterplot(
-        x=embeddings_2d[:, 0],
-        y=embeddings_2d[:, 1],
-        hue=_label_names,
-        palette={"NonSelfie": "steelblue", "Selfie": "coral"},
-        edgecolor="k",
-        alpha=0.75,
-        ax=_ax1,
-    )
-    _ax1.set_xlabel("PaCMAP 1")
-    _ax1.set_ylabel("PaCMAP 2")
-    _ax1.set_title("True Labels")
-    _ax1.legend(
-        title="Class",
-        bbox_to_anchor=(1.01, 1.01),
-        loc="upper left",
-    )
-
-    sns.scatterplot(
-        x=embeddings_2d[:, 0],
-        y=embeddings_2d[:, 1],
-        hue=_cluster_names,
-        palette={"NonSelfie": "steelblue", "Selfie": "coral"},
-        edgecolor="k",
-        alpha=0.75,
-        ax=_ax2,
-    )
-    _ax2.set_xlabel("PaCMAP 1")
-    _ax2.set_ylabel("PaCMAP 2")
-    _ax2.set_title("K-Means Cluster Assignments")
-    _ax2.legend(
-        title="Cluster",
-        bbox_to_anchor=(1.01, 1.01),
-        loc="upper left",
-    )
 
     plt.tight_layout()
     plt.show()
