@@ -338,7 +338,7 @@ def _(resnet_model, test_loader, train_loader, train_model, val_loader):
         train_loader=train_loader,
         val_loader=val_loader,
         test_loader=test_loader,
-        num_epochs=4,
+        num_epochs=1,
     )
     return (finetuned_results,)
 
@@ -463,6 +463,12 @@ def _(
 
 
 @app.cell
+def _(sns):
+    sns.set_style('white')
+    return
+
+
+@app.cell
 def _(
     ConfusionMatrixDisplay,
     baseline_results,
@@ -508,7 +514,8 @@ def _(Path, resnet_model, torch):
     #   - Smaller file (no pickled class definitions)
     #   - Portable across code changes (you control the architecture at load time)
     #   - Recommended by PyTorch documentation
-    model_save_path = Path("data/selfie_data/resnet50_selfie.pth")
+    Path('models').mkdir(exist_ok=True)
+    model_save_path = Path("models/resnet50_selfie.pth")
 
     torch.save(
         obj=resnet_model.state_dict(),
@@ -616,8 +623,8 @@ def _(
         _logits = loaded_model(_input_batch)
         _probs = torch.softmax(_logits, dim=1)
 
-    print(f"Raw logits:    {_logits.cpu().numpy().round(3)}")
-    print(f"Probabilities: {_probs.cpu().numpy().round(3)}")
+    print(f"Raw logits:    {_logits.cpu().float().numpy().round(3)}")
+    print(f"Probabilities: {_probs.cpu().float().numpy().round(3)}")
     print(f"  Index 0 = {class_names[0]}, Index 1 = {class_names[1]}\n")
 
     _pred_label = _logits.argmax(dim=1).item()
@@ -681,7 +688,7 @@ def _(
         _logits = loaded_model(_images_device)
         _probs = torch.softmax(_logits, dim=1)
         _preds = _logits.argmax(dim=1).cpu().numpy()
-        _confs = _probs.max(dim=1).values.cpu().numpy()
+        _confs = _probs.max(dim=1).values.cpu().float().numpy()
 
     _labels_np = _labels.numpy()
     _correct = (_preds == _labels_np).sum()
@@ -718,71 +725,6 @@ def _(
 
 
 @app.cell
-def _(class_names, finetuned_results, full_dataset, np, plt, test_indices):
-    _preds = finetuned_results["predictions"]
-    _labels = finetuned_results["labels"]
-
-    _selfie_idx = class_names.index("Selfie")
-    _nonselfie_idx = class_names.index("NonSelfie")
-
-    _fp_mask = (_preds == _selfie_idx) & (_labels == _nonselfie_idx)
-    _fn_mask = (_preds == _nonselfie_idx) & (_labels == _selfie_idx)
-    _fp_positions = np.where(_fp_mask)[0]
-    _fn_positions = np.where(_fn_mask)[0]
-
-    print(f"False positives: {len(_fp_positions)}")
-    print(f"False negatives: {len(_fn_positions)}")
-
-    _mean = np.array([0.485, 0.456, 0.406])
-    _std = np.array([0.229, 0.224, 0.225])
-
-    _rng = np.random.default_rng(seed=42)
-    _n_fp = min(4, len(_fp_positions))
-    _n_fn = min(4, len(_fn_positions))
-    _fp_sample = _rng.choice(_fp_positions, size=_n_fp, replace=False)
-    _fn_sample = _rng.choice(_fn_positions, size=_n_fn, replace=False)
-
-    _fig, _axes = plt.subplots(
-        nrows=2,
-        ncols=4,
-        figsize=(12, 6),
-    )
-
-    for _i, _ax in enumerate(_axes[0]):
-        if _i < _n_fp:
-            _img, _ = full_dataset[test_indices[_fp_sample[_i]]]
-            _img_np = _img.numpy().transpose(1, 2, 0)
-            _img_np = np.clip(_img_np * _std + _mean, 0, 1)
-            _ax.imshow(_img_np)
-            _ax.set_title(
-                f"True: NonSelfie\nPred: Selfie",
-                color="red",
-                fontsize=9,
-            )
-        _ax.axis("off")
-
-    for _i, _ax in enumerate(_axes[1]):
-        if _i < _n_fn:
-            _img, _ = full_dataset[test_indices[_fn_sample[_i]]]
-            _img_np = _img.numpy().transpose(1, 2, 0)
-            _img_np = np.clip(_img_np * _std + _mean, 0, 1)
-            _ax.imshow(_img_np)
-            _ax.set_title(
-                f"True: Selfie\nPred: NonSelfie",
-                color="red",
-                fontsize=9,
-            )
-        _ax.axis("off")
-
-    _axes[0, 0].set_ylabel("False Positives", fontsize=11, fontweight="bold")
-    _axes[1, 0].set_ylabel("False Negatives", fontsize=11, fontweight="bold")
-
-    plt.tight_layout()
-    plt.show()
-    return
-
-
-@app.cell
 def _(device, nn, np, resnet_model, test_loader, torch, use_bfloat16):
     # Embeddings are the 2048-dim vectors from the penultimate layer --
     # the backbone's learned representation of each image
@@ -805,7 +747,7 @@ def _(device, nn, np, resnet_model, test_loader, torch, use_bfloat16):
         for _X_batch, _y_batch in test_loader:
             _X_batch = _X_batch.to(device)
             _emb = resnet_model(_X_batch)
-            _all_embeddings.append(_emb.cpu().numpy())
+            _all_embeddings.append(_emb.cpu().float().numpy())
             _all_labels.append(_y_batch.numpy())
 
     # Restore the trained fc head so the model is usable for classification again

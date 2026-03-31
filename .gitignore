@@ -23,3 +23,6 @@ data/selfie_*
 
 # PyTorch model checkpoints
 *.pth
+
+# PyTorch models
+models/
