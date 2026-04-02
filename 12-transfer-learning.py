@@ -41,6 +41,7 @@ def _():
     from sklearn.model_selection import train_test_split
     from torch.utils.data import DataLoader, Subset
     from torchvision import models, transforms
+    from PIL import Image
     from torchvision.datasets import ImageFolder
 
     # seaborn whitegrid gives clean axis lines for all plots
@@ -56,6 +57,7 @@ def _():
     return (
         ConfusionMatrixDisplay,
         DataLoader,
+        Image,
         ImageFolder,
         Path,
         Subset,
@@ -159,7 +161,7 @@ def _(ImageFolder, np, train_test_split, transforms):
     print(f"Training:   {len(train_indices):,} images")
     print(f"Validation: {len(val_indices):,} images")
     print(f"Test:       {len(test_indices):,} images")
-    return class_names, full_dataset, test_indices, train_indices, val_indices
+    return class_names, full_dataset, imagenet_transform, test_indices, train_indices, val_indices
 
 
 @app.cell(hide_code=True)
@@ -904,6 +906,91 @@ def _(
             fontsize=9,
         )
         _ax.axis("off")
+
+    plt.tight_layout()
+    plt.show()
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Classifying a New Unlabeled Image
+
+    The inference examples above pulled images from the `ImageFolder` dataset, where preprocessing was already applied and a ground truth label was available. In a real deployment scenario, you receive a raw image file with no label and must handle the full pipeline yourself.
+
+    Three steps replace what `ImageFolder` did automatically:
+
+    1. **Open the file** with `PIL.Image.open()` to get a PIL image object
+    2. **Convert to RGB** with `.convert("RGB")` -- some images may be grayscale or RGBA, but the model expects three channels
+    3. **Apply the same preprocessing transform** (`imagenet_transform`) that was used during training -- resize, center-crop, convert to tensor, and normalize with the ImageNet channel statistics
+
+    After preprocessing, the workflow is identical to the single-image inference above: add a batch dimension, run the forward pass, and read off the predicted class. The example below uses an existing file from the dataset for convenience, but in practice this would be any new image.
+    """)
+    return
+
+
+@app.cell
+def _(Image, Path, class_names, device, imagenet_transform, loaded_model, np, plt, torch, use_bfloat16):
+    # --- Classify a new image from a file path ---
+    #
+    # This is the real-world inference workflow: you have a file on disk,
+    # no label, and need a prediction.
+
+    # Step 1: Open the raw image file and convert to RGB
+    _image_path = Path("data/selfie_data/Selfie/Selfie42906.jpg")
+    _pil_image = Image.open(_image_path).convert("RGB")
+
+    print(f"Image path:  {_image_path}")
+    print(f"Image size:  {_pil_image.size} (width, height)")
+    print(f"Image mode:  {_pil_image.mode}\n")
+
+    # Step 2: Apply the same ImageNet preprocessing used during training
+    _img_tensor = imagenet_transform(_pil_image)
+    print(f"Tensor shape after transform: {list(_img_tensor.shape)}")
+    print(f"  (channels, height, width)\n")
+
+    # Step 3: Add batch dimension and run inference
+    _input_batch = _img_tensor.unsqueeze(0).to(device)
+
+    _autocast = torch.amp.autocast(
+        device_type=device.type,
+        dtype=torch.bfloat16,
+        enabled=use_bfloat16,
+    )
+
+    with torch.no_grad(), _autocast:
+        _logits = loaded_model(_input_batch)
+        _probs = torch.softmax(_logits, dim=1)
+
+    _pred_label = _logits.argmax(dim=1).item()
+    _confidence = _probs[0, _pred_label].item()
+
+    print(f"Predicted class: {class_names[_pred_label]} ({_confidence:.1%} confidence)")
+    print(f"Probabilities:   {dict(zip(class_names, _probs.cpu().float().numpy().round(3).flat))}")
+
+    # Display the original image alongside the preprocessed version
+    _mean = np.array([0.485, 0.456, 0.406])
+    _std = np.array([0.229, 0.224, 0.225])
+    _img_np = _img_tensor.numpy().transpose(1, 2, 0)
+    _img_np = np.clip(_img_np * _std + _mean, 0, 1)
+
+    _fig, (_ax1, _ax2) = plt.subplots(
+        nrows=1,
+        ncols=2,
+        figsize=(6, 3),
+    )
+
+    _ax1.imshow(_pil_image)
+    _ax1.set_title("Original image", fontsize=10)
+    _ax1.axis("off")
+
+    _ax2.imshow(_img_np)
+    _ax2.set_title(
+        f"Pred: {class_names[_pred_label]} ({_confidence:.1%})",
+        fontsize=10,
+    )
+    _ax2.axis("off")
 
     plt.tight_layout()
     plt.show()
