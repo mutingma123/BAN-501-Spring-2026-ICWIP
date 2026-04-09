@@ -3,6 +3,7 @@
 
 progress.txt
 data/selfie_*
+embeddings/*
 
 # pixi environments
 .pixi/*

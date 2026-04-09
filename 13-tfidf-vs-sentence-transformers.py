@@ -16,11 +16,14 @@ def _():
     import pacmap
     import polars as pl
     import seaborn as sns
+    from sentence_transformers import SentenceTransformer
+    from sklearn.cluster import HDBSCAN
     from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.metrics.pairwise import cosine_similarity
 
     sns.set_style("whitegrid")
     return (
+        SentenceTransformer,
         TfidfVectorizer,
         cosine_similarity,
         mo,
@@ -258,11 +261,171 @@ def _(pacmap_embeddings, plt, sns):
     sns.scatterplot(
         x=pacmap_embeddings[:, 0],
         y=pacmap_embeddings[:, 1],
-        alpha=0.2,
+        alpha=0.01,
+        color='steelblue',
         edgecolor='k',
     )
 
     plt.show()
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Sentence Transformers
+
+    TF-IDF treats each document as a bag of words: two reviews that say the same thing
+    in different words will look completely different. **Sentence transformers** fix this
+    by encoding each piece of text into a dense vector that captures semantic meaning.
+    Words like "great" and "excellent" end up near each other in the embedding space, even
+    though they share no characters.
+
+    We use the `all-MiniLM-L6-v2` model, a lightweight transformer that maps each review
+    to a 384-dimensional vector.
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Encoding the Reviews
+
+    We encode all 10,000 reviews with the sentence transformer. Because encoding is
+    slow, we cache the embeddings (along with their PaCMAP projections) to a parquet
+    file so subsequent runs skip the computation.
+    """)
+    return
+
+
+@app.cell
+def _(SentenceTransformer, all_texts, pacmap, pathlib, pl):
+    embeddings_directory = pathlib.Path('embeddings')
+    embeddings_directory.mkdir(exist_ok=True)
+
+    st_model_embeddings_filepath = pathlib.Path(
+        embeddings_directory,
+        'st_embeddings.parquet'
+    )
+    st_model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+
+    if st_model_embeddings_filepath.exists():
+        st_embeddings_df = pl.read_parquet(st_model_embeddings_filepath)
+    else:
+        st_embedding_array = st_model.encode(
+            all_texts,
+            batch_size=64,
+            show_progress_bar=True,
+        )
+    
+        _pacmap_reducer = pacmap.PaCMAP()
+        _st_pacmap_embeddings = _pacmap_reducer.fit_transform(st_embedding_array)
+
+        st_embeddings_df = pl.DataFrame({
+            'text': all_texts,
+            'st_embeddings': st_embedding_array,
+            'pacmap_embeddings': _st_pacmap_embeddings
+        })
+        st_embeddings_df.write_parquet(st_model_embeddings_filepath)
+    return st_embeddings_df, st_model
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## 2D Scatter of Sentence Transformer Embeddings
+
+    Just as we did with TF-IDF, we project the sentence transformer embeddings into 2D
+    with PaCMAP. Compare this plot with the TF-IDF scatter above: because the transformer
+    captures semantic similarity rather than word overlap, the clusters here often
+    correspond to topics or sentiments rather than shared vocabulary.
+    """)
+    return
+
+
+@app.cell
+def _(plt, sns, st_embeddings_df):
+    _pacmap_st_embeddings = st_embeddings_df['pacmap_embeddings'].to_numpy()
+
+    _fig, _ax = plt.subplots(1, 1, figsize=(5, 5))
+
+    sns.scatterplot(
+        x=_pacmap_st_embeddings[:, 0],
+        y=_pacmap_st_embeddings[:, 1],
+        alpha=0.01,
+        color='steelblue',
+        edgecolor='k',
+    )
+
+    plt.show()
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Similarity Search with Sentence Transformer Embeddings
+
+    We repeat the same cosine-similarity search we ran with TF-IDF, but now using the
+    sentence transformer vectors. Because these embeddings encode meaning, the nearest
+    neighbors should be semantically similar, even if they use entirely different words.
+    """)
+    return
+
+
+@app.cell
+def _(all_texts, cosine_similarity, np, st_embeddings_df):
+    _st_embeddings = st_embeddings_df['st_embeddings'].to_numpy()
+
+    _test_idx = 1
+    _test_text = all_texts[_test_idx]
+
+    _test_sims = cosine_similarity(
+        _st_embeddings[_test_idx].reshape(1, -1),
+        _st_embeddings,
+    )
+
+    _similar_indices = np.argsort(_test_sims.flatten())[-6:][::-1]
+
+    for _idx in _similar_indices:
+        print(f' - {all_texts[_idx]}')
+        print('-'*75)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Querying with a New Sentence
+
+    A key advantage of sentence transformers is that we can encode text that was never in
+    the training corpus. Here we write a brand-new sentence, encode it with the same
+    model, and find the most similar reviews. TF-IDF could do this too, but the
+    transformer will match on meaning rather than exact word overlap.
+    """)
+    return
+
+
+@app.cell
+def _(all_texts, cosine_similarity, np, st_embeddings_df, st_model):
+    my_sentence = "This GPU is very disappointing. It overheats and constantly shuts off. Very disappointed!!!"
+    my_sentence_embedding = st_model.encode(
+        [my_sentence]
+    )
+
+    _st_embeddings = st_embeddings_df['st_embeddings'].to_numpy()
+
+    _test_sims = cosine_similarity(
+        my_sentence_embedding,
+        _st_embeddings,
+    )
+
+    _similar_indices = np.argsort(_test_sims.flatten())[-6:][::-1]
+
+    for _idx in _similar_indices:
+        print(f' - {all_texts[_idx]}')
+        print('-'*75)
     return
 
 
