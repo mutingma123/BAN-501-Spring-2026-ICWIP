@@ -1,0 +1,120 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{xcolor}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    urlcolor=blue
+}
+
+
+\begin{document}
+
+\begin{center}
+	{\huge
+	\textbf{BAN-501 Final Project:\\ AI for Consumer Behavior Classification}
+}
+\end{center}
+
+\section*{Business Context}
+
+Imagine you are a data scientist at a firm that advises consumer-facing companies on how emerging artificial intelligence technologies can improve their understanding of customers. Your clients want to know: What recent AI research has direct implications for how we study and predict consumer behavior? They need you to monitor the academic literature and identify relevant advances. A major challenge is scale. A simple keyword search for ``artificial intelligence'' in Scopus returns over 300,000 publications from the past six years alone. Most of these papers have nothing to do with consumers. They cover medical imaging, autonomous vehicles, robotics, natural language processing for legal documents, and countless other domains. Manually reviewing this volume of abstracts is impractical, but your clients cannot afford to miss important developments.
+
+Your task is to build an automated classifier that can scan this corpus and surface the publications most relevant to consumer behavior research. This is a common real-world scenario in applied machine learning: you have a large corpus of text and a classification goal, but no ground truth labels.
+
+% \section{Learning Objectives}
+%
+% This project provides an opportunity to demonstrate six core competencies. First, \textbf{problem framing}: you must operationalize an abstract concept (``AI for consumer behavior'') into a concrete classification task with clear decision boundaries. Second, \textbf{labeling strategy design}: with no existing labels, you must develop an approach to create training data, whether through keyword heuristics, manual annotation, LLM-assisted labeling, or some combination. Third, \textbf{transformer fine-tuning}: you will apply pre-trained language models to a domain-specific classification task, making decisions about model architecture and training procedures. Fourth, \textbf{evaluation methodology}: you must design appropriate train/validation/test splits, select relevant metrics, and avoid data leakage. Fifth, \textbf{error analysis}: beyond aggregate metrics, you should identify systematic failure modes and understand where and why your model struggles. Sixth, \textbf{technical communication}: you will present your methodology and findings clearly to a mixed audience through a video presentation.
+
+\section*{Dataset Description}
+
+The dataset consists of 306,866 publication abstracts collected from Scopus using an ``artificial intelligence'' keyword search, covering publications from 2020 through 2026. The data is stored in \texttt{ai\_publications\_2020\_plus.parquet}. Each record contains the following fields: \texttt{scopus\_id} (a unique identifier such as ``2-s2.0-85186955255''), \texttt{title}, \texttt{abstract}, \texttt{year} (publication year from 2020--2026), \texttt{publication\_name} (the journal or conference), \texttt{publication\_type} (Journal, Conference Proceeding, Book, etc.), \texttt{subtype} (Article, Conference Paper, Review, etc.), \texttt{doi} (if available), and \texttt{keywords} (author-provided keywords, semicolon-separated).
+
+
+\section*{Task Definition}
+
+Your classifier should identify publications that apply AI or machine learning techniques to understand \textbf{consumer behavior}. For this project, consumer behavior is defined narrowly as research focused on (i) purchase decisions, including what, when, why, and how consumers buy; (ii) brand choice and preference, examining how consumers select among alternatives; (iii) consumer psychology, encompassing attitudes, perceptions, motivations, and decision-making processes; and (iv) shopping behavior, such as in-store and online browsing, cart abandonment, and price sensitivity.
+
+To clarify the classification task, consider some examples. A paper stating ``We use deep learning to predict customer purchase intent from browsing sessions'' should be classified as consumer behavior research, as should ``This study applies sentiment analysis to understand brand perception from social media'' and ``A neural network model for personalized product recommendations based on past purchases.'' However, several categories of papers should \emph{not} be classified as consumer behavior. A paper proposing a CNN for medical image classification applies AI but not to consumer behavior. A survey examining consumer attitudes toward AI adoption studies consumers but does not apply AI to understand them. Research on deep reinforcement learning for robotic manipulation involves AI but has no consumer relevance.
+
+\section*{Requirements}
+
+\subsection*{Labeling Strategy (20 points)}
+
+Since no labels exist, you must create your own training data. Several approaches are possible. For example, keyword-based methods that use pattern matching can generate initial pseudo-labels that can be refined iteratively. Manual labeling involves reading and annotating abstracts by hand, which is time-intensive but produces high-quality labels. LLM-assisted labeling leverages a large language model to generate candidate labels at a larger scale, but may still require inspection to ensure alignment. Active learning iteratively identifies and labels the examples where the model is most uncertain.
+
+Whatever approach you choose, you must justify why the approach is appropriate for this task, acknowledge its limitations and potential biases, and describe how you handled ambiguous cases. The labeling strategy is not just a means to an end, but a core methodological decision that deserves careful explanation.
+
+\subsection*{Model Training (20 points)}
+
+This project assumes you will use Google Colab's free tier, which provides limited GPU time and approximately 12GB of RAM. Models like DistilBERT (approximately 66 million parameters) are recommended. Larger models such as BERT-base or RoBERTa may exceed memory or time limits. You must make several decisions, including: 1) which pre-trained model you use as your starting point, 2) whether you fine-tune only the classification head, or update the entire model, and 3) the hyperparameters you use for learning rate, batch size, and number of epochs? Either \textit{head-only} or \textit{full fine-tuning} is acceptable, so long as you justify your decision.
+
+\subsection*{Evaluation and Analysis (16 points)}
+
+Your evaluation must demonstrate proper data splits with train, validation, and test sets that avoid any leakage from labeling decisions. You should report relevant metrics, explaining why these metrics matter for your use case. Most importantly, you should conduct substantive error analysis that examines your false positives and false negatives, identifies patterns, and explains what types of papers are systematically misclassified and why.
+
+\subsection*{Video Presentation (16 points)}
+
+Create a 15-minute YouTube video that walks through your entire project. The video should cover (i) the problem statement, explaining what you are classifying and why it matters; (ii) your methodology, describing how you created labels and trained the model; (iii) your results, presenting the performance metrics you achieved with appropriate visualizations; (iv) specific examples, walking through examples for true positives, false positives, and false negatives to illustrate what the model learned and where it struggles; and (v) reflection on what worked, what did not, and what you would do differently.
+
+All team members should participate in the presentation. Videos significantly over or under 15 minutes will lose points.
+
+\subsection*{Reflection and Future Work (8 points)}
+
+As part of your video, include an honest assessment of the limitations in your approach. Discuss concrete ideas for improvement given more time and compute resources, and consider how you would validate the classifier's real-world utility if you were to deploy it for the described business use case.
+
+\section*{Peer Evaluation (20 points)}
+
+After all videos are submitted, each team will watch and evaluate the other teams' presentations. For each video you review, provide (i) a rating from 1 to 5, where 5 indicates an excellent presentation; (ii) one specific thing you thought the team did well; and (iii) one constructive suggestion for improvement. Submit one evaluation per team covering all other videos.
+
+% \section{Technical Constraints}
+%
+% You should plan to use Google Colab's free tier, which provides limited GPU time and approximately 12GB of RAM. The recommended starting model is \texttt{distilbert-base-uncased} or a similar small transformer. You may use PyTorch, Hugging Face Transformers, scikit-learn, and polars or pandas for data manipulation.
+
+\section*{Deliverables and Timeline}
+
+The project has two submission deadlines. By \textbf{Tuesday, April 28, 2026 at 5:00 PM}, submit your YouTube video link. The video should be set to \textit{Unlisted} or \textit{Public} visibility. By \textbf{Sunday, May 3, 2026 at midnight}, submit your peer evaluations covering all other teams' videos.
+
+\section*{Grading Rubric}
+
+\begin{center}
+\begin{tabular}{p{4cm}lp{10cm}}
+\toprule
+\textbf{Component} & \textbf{Points} & \textbf{Criteria} \\
+\midrule
+Labeling Strategy & 20 & Clear justification for chosen approach. Acknowledgment of limitations. Thoughtful handling of edge cases. Documentation of labeling decisions. \\
+\addlinespace
+Model Training & 20 & Appropriate model choice for constraints. Justified training approach (head-only vs full). Reasonable hyperparameter choices. Evidence of iterative refinement. \\
+\addlinespace
+Evaluation \& Analysis & 16 & Proper train/val/test splits. Appropriate metrics with interpretation. Substantive error analysis with specific examples. \\
+\addlinespace
+Video Presentation & 16 & Clear explanation of methodology. Well-organized narrative. Effective visualizations. All team members participate. Stays within 15 minutes. \\
+\addlinespace
+Reflection \& Future Work & 8 & Honest assessment of what worked and what didn't. Concrete, actionable improvement ideas. Thoughtful consideration of real-world deployment. \\
+\addlinespace
+Peer Evaluation & 20 & Thoughtful ratings and feedback for all teams. Specific, constructive comments. Demonstrates engagement with others' work. \\
+\midrule
+\textbf{Total} & \textbf{100} & \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section*{Team Requirements}
+
+Teams may include up to three students. All team members must contribute to the video presentation, and you should include team member names in both the video and your submission.
+
+% \section{Getting Started}
+%
+% Begin by loading and exploring the dataset using \texttt{load\_data\_example.py} as a reference. Read through several dozen abstracts to develop intuition for the classification challenge and the boundary cases you will encounter. Next, develop your labeling strategy and create an initial set of training labels. Implement your classifier using the course notebook \texttt{transformer-classification.py} as a starting point, then iterate through training and evaluation cycles. Finally, record and edit your video presentation.
+
+% \section{Tips for Success}
+%
+% Start with labeling early. Creating good training data takes longer than you expect, and the quality of your labels directly affects everything downstream. Keep a decision log as you work, documenting your choices about what counts as consumer behavior and how you handled ambiguous cases; this will make your video explanation much easier. Always evaluate on held-out data that was not used for any labeling decisions. Practice your presentation, as 15 minutes goes quickly when you have methodology, results, examples, and reflection to cover. Finally, remember that the process matters as much as the final performance number. A thoughtful approach with modest metrics is more valuable than high accuracy achieved through shortcuts.
+
+\end{document}
