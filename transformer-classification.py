@@ -7,7 +7,7 @@ app = marimo.App(width="full")
 @app.cell
 def _():
     import marimo as mo
-    from pathlib import Path
+    import pathlib
 
     import matplotlib.pyplot as plt
     import numpy as np
@@ -38,13 +38,11 @@ def _():
         ConfusionMatrixDisplay,
         DataLoader,
         Dataset,
-        Path,
         accuracy_score,
         device,
         f1_score,
-        mo,
-        nn,
         np,
+        pathlib,
         pl,
         plt,
         sns,
@@ -62,8 +60,10 @@ def _():
     MAX_LENGTH = 128  # Max tokens per review
     BATCH_SIZE = 16
     LEARNING_RATE = 2e-5
-    EPOCHS_HEAD_ONLY = 3
-    EPOCHS_FULL_FINETUNE = 3
+
+    EPOCHS_HEAD_ONLY = 5
+    EPOCHS_FULL_FINETUNE = 5
+
     MODEL_NAME = "distilbert-base-uncased"
     return (
         BATCH_SIZE,
@@ -77,16 +77,18 @@ def _():
 
 
 @app.cell
-def _(SAMPLE_SIZE, np, pl):
+def _(SAMPLE_SIZE, np, pathlib, pl):
+    data_filepath = pathlib.Path("data/amazon_reviews/amazon_reviews-10000.parquet")
+
     # Load Amazon reviews and convert ratings to integer labels (0-4)
-    _df = pl.read_parquet("data/amazon_reviews/amazon_reviews-10000.parquet")
+    _df = pl.read_parquet(data_filepath)
     _df = _df.with_columns(
-        (pl.col("rating").cast(pl.Int32) - 1).alias("label")
+        label = (pl.col("rating").cast(pl.Int32) - 1)
     )
 
     if SAMPLE_SIZE is not None:
-        _rng = np.random.default_rng(seed=42)
-        _indices = _rng.choice(
+        np.random.seed(42)
+        _indices = np.random.choice(
             len(_df),
             size=min(SAMPLE_SIZE, len(_df)),
             replace=False,
@@ -150,7 +152,7 @@ def _(AutoTokenizer, MODEL_NAME, texts):
 
 
 @app.cell
-def _(Dataset, labels, texts, tokenizer, torch):
+def _(Dataset, torch):
     # Custom Dataset that tokenizes text and returns tensors
     class ReviewDataset(Dataset):
         def __init__(self, indices, texts, labels, tokenizer, max_length):
@@ -242,14 +244,7 @@ def _(
     print(f"Train batches: {len(train_loader)}")
     print(f"Val batches:   {len(val_loader)}")
     print(f"Test batches:  {len(test_loader)}")
-    return (
-        test_dataset,
-        test_loader,
-        train_dataset,
-        train_loader,
-        val_dataset,
-        val_loader,
-    )
+    return test_loader, train_loader, val_loader
 
 
 @app.cell
@@ -428,15 +423,39 @@ def _(head_only_history, plt):
 
     _epochs = range(1, len(head_only_history["train_loss"]) + 1)
 
-    _ax1.plot(_epochs, head_only_history["train_loss"], "o-", label="Train")
-    _ax1.plot(_epochs, head_only_history["val_loss"], "o-", label="Val")
+    _ax1.plot(
+        _epochs, 
+        head_only_history["train_loss"], 
+        "o-", 
+        label="Train",
+        color='steelblue'
+    )
+    _ax1.plot(
+        _epochs, 
+        head_only_history["val_loss"], 
+        "o-", 
+        label="Val",
+        color='orange'
+    )
     _ax1.set_xlabel("Epoch")
     _ax1.set_ylabel("Loss")
     _ax1.set_title("Phase 1: Head Only — Loss")
     _ax1.legend()
 
-    _ax2.plot(_epochs, head_only_history["train_acc"], "o-", label="Train")
-    _ax2.plot(_epochs, head_only_history["val_acc"], "o-", label="Val")
+    _ax2.plot(
+        _epochs, 
+        head_only_history["train_acc"], 
+        "o-", 
+        label="Train",
+        color='blue',
+    )
+    _ax2.plot(
+        _epochs, 
+        head_only_history["val_acc"], 
+        "o-", 
+        label="Val",
+        color='orange',
+    )
     _ax2.set_xlabel("Epoch")
     _ax2.set_ylabel("Accuracy")
     _ax2.set_title("Phase 1: Head Only — Accuracy")
@@ -535,44 +554,43 @@ def _(full_finetune_history, plt):
 
     _epochs = range(1, len(full_finetune_history["train_loss"]) + 1)
 
-    _ax1.plot(_epochs, full_finetune_history["train_loss"], "o-", label="Train")
-    _ax1.plot(_epochs, full_finetune_history["val_loss"], "o-", label="Val")
+    _ax1.plot(
+        _epochs, 
+        full_finetune_history["train_loss"], 
+        "o-", 
+        label="Train",
+        color='steelblue'
+    )
+    _ax1.plot(
+        _epochs, 
+        full_finetune_history["val_loss"], 
+        "o-", 
+        label="Val",
+        color='orange'
+    )
     _ax1.set_xlabel("Epoch")
     _ax1.set_ylabel("Loss")
     _ax1.set_title("Phase 2: Full Fine-tuning — Loss")
     _ax1.legend()
 
-    _ax2.plot(_epochs, full_finetune_history["train_acc"], "o-", label="Train")
-    _ax2.plot(_epochs, full_finetune_history["val_acc"], "o-", label="Val")
+    _ax2.plot(
+        _epochs, 
+        full_finetune_history["train_acc"], 
+        "o-", 
+        label="Train",
+        color='blue',
+    )
+    _ax2.plot(
+        _epochs, 
+        full_finetune_history["val_acc"], 
+        "o-", 
+        label="Val",
+        color='orange',
+    )
     _ax2.set_xlabel("Epoch")
     _ax2.set_ylabel("Accuracy")
     _ax2.set_title("Phase 2: Full Fine-tuning — Accuracy")
     _ax2.legend()
-
-    plt.tight_layout()
-    plt.show()
-    return
-
-
-@app.cell
-def _(full_finetune_history, head_only_history, plt):
-    # Compare the two approaches
-    _fig, _ax = plt.subplots(figsize=(8, 5))
-
-    _ax.bar(
-        x=["Head Only", "Full Fine-tuning"],
-        height=[
-            head_only_history["val_acc"][-1],
-            full_finetune_history["val_acc"][-1],
-        ],
-        edgecolor="k",
-    )
-    _ax.set_ylabel("Validation Accuracy")
-    _ax.set_title("Comparison: Head-Only vs Full Fine-tuning")
-    _ax.set_ylim(0, 1)
-
-    for _i, _v in enumerate([head_only_history["val_acc"][-1], full_finetune_history["val_acc"][-1]]):
-        _ax.text(_i, _v + 0.02, f"{_v:.3f}", ha="center", fontsize=12)
 
     plt.tight_layout()
     plt.show()
@@ -621,7 +639,7 @@ def _(
 
 
 @app.cell
-def _(np, plt, sns, test_indices, test_results, texts):
+def _(np, plt, sns, test_results):
     # Error analysis: examine misclassified examples
     _preds = test_results["predictions"]
     _labels = test_results["labels"]
@@ -662,42 +680,6 @@ def _(np, plt, sns, test_indices, test_results, texts):
     _ax.set_title("Error Distribution (Misclassifications Only)")
     plt.tight_layout()
     plt.show()
-    return
-
-
-@app.cell
-def _(np, test_indices, test_results, texts):
-    # Show example misclassified reviews
-    _preds = test_results["predictions"]
-    _labels = test_results["labels"]
-    _errors = np.where(_preds != _labels)[0]
-
-    print("Sample Misclassified Reviews")
-    print("=" * 70)
-
-    # Show up to 2 examples for each type of significant error
-    _shown_types = set()
-    _examples_shown = 0
-
-    for _idx in _errors:
-        _true = _labels[_idx]
-        _pred = _preds[_idx]
-        _error_type = (_true, _pred)
-
-        # Focus on large rating gaps (off by 2+ stars)
-        if abs(_true - _pred) >= 2 and _error_type not in _shown_types and _examples_shown < 8:
-            _text_idx = test_indices[_idx]
-            _review = texts[_text_idx]
-
-            print(f"\nTrue: {_true + 1}-star | Predicted: {_pred + 1}-star")
-            print(f"Review: {_review[:300]}{'...' if len(_review) > 300 else ''}")
-            print("-" * 70)
-
-            _shown_types.add(_error_type)
-            _examples_shown += 1
-
-    if _examples_shown == 0:
-        print("No large errors (off by 2+ stars) found in test set.")
     return
 
 
@@ -748,7 +730,7 @@ def _(MAX_LENGTH, device, model_full, tokenizer, torch):
         print(f"Review: \"{_text}\"")
         print(f"  Predicted: {_result['predicted_rating']}-star ({_result['confidence']:.2%} confidence)")
         print()
-    return (classify_review,)
+    return
 
 
 @app.cell
