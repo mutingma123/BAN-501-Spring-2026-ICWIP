@@ -62,11 +62,11 @@ def _(mo):
     This notebook explores two dimensionality reduction techniques applied to the bank marketing
     dataset:
 
-    - **PCA** (Principal Component Analysis) — a linear method that finds directions of maximum variance
-    - **PaCMAP** (Pairwise Controlled Manifold Approximation Projection) — a non-linear method that preserves both local and global structure
+    - **PCA** (Principal Component Analysis), a linear method that finds directions of maximum variance
+    - **PaCMAP** (Pairwise Controlled Manifold Approximation Projection), a non-linear method that preserves both local and global structure
 
     After visualizing the 2D embeddings, we train Optuna-tuned random forest classifiers on three
-    representations — raw encoded features (10-dim), PCA (2-dim), and PaCMAP (2-dim) — to see how
+    representations (raw encoded features (10-dim), PCA (2-dim), and PaCMAP (2-dim)) to see how
     dimensionality reduction affects classification performance.
     """)
     return
@@ -183,11 +183,11 @@ def _(
         drop="first",
     )
 
-    encoder.fit(X_train.select(categorical_features))
+    encoder.fit(X=X_train.select(categorical_features))
 
     encoder.set_output(transform="polars")
-    _X_train_cat = encoder.transform(X_train.select(categorical_features))
-    _X_test_cat = encoder.transform(X_test.select(categorical_features))
+    _X_train_cat = encoder.transform(X=X_train.select(categorical_features))
+    _X_test_cat = encoder.transform(X=X_test.select(categorical_features))
 
     X_train_encoded = pl.concat([
         X_train.select(numeric_features),
@@ -212,7 +212,7 @@ def _(mo):
     mo.md(r"""
     ## Feature Scaling
 
-    PCA requires standardized features because it maximizes variance — features on larger scales
+    PCA requires standardized features because it maximizes variance, so features on larger scales
     would dominate the principal components. We apply `StandardScaler` (zero mean, unit variance)
     before PCA.
 
@@ -225,8 +225,8 @@ def _(mo):
 @app.cell
 def _(StandardScaler, X_test_encoded, X_train_encoded):
     scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train_encoded)
-    X_test_scaled = scaler.transform(X_test_encoded)
+    X_train_scaled = scaler.fit_transform(X=X_train_encoded)
+    X_test_scaled = scaler.transform(X=X_test_encoded)
 
     print(f"Scaled training set shape: {X_train_scaled.shape}")
     return X_train_scaled, X_test_scaled
@@ -246,7 +246,7 @@ def _(mo):
 @app.cell
 def _(PCA, X_train_scaled, np, plt):
     _pca_full = PCA()
-    _pca_full.fit(X_train_scaled)
+    _pca_full.fit(X=X_train_scaled)
 
     _var_ratios = _pca_full.explained_variance_ratio_
     _cumulative = np.cumsum(_var_ratios)
@@ -295,8 +295,8 @@ def _(mo):
 @app.cell
 def _(PCA, X_test_scaled, X_train_scaled):
     pca_2d_model = PCA(n_components=2)
-    X_train_pca = pca_2d_model.fit_transform(X_train_scaled)
-    X_test_pca = pca_2d_model.transform(X_test_scaled)
+    X_train_pca = pca_2d_model.fit_transform(X=X_train_scaled)
+    X_test_pca = pca_2d_model.transform(X=X_test_scaled)
 
     print(f"Variance explained by 2 components: {pca_2d_model.explained_variance_ratio_.sum():.2%}")
     print(f"PC1: {pca_2d_model.explained_variance_ratio_[0]:.2%}")
@@ -395,8 +395,8 @@ def _(X_test_encoded, X_train_encoded, pacmap):
         random_state=42,
         save_tree=True,
     )
-    X_train_pacmap = pacmap_model.fit_transform(X_train_encoded)
-    X_test_pacmap = pacmap_model.transform(X_test_encoded)
+    X_train_pacmap = pacmap_model.fit_transform(X=X_train_encoded)
+    X_test_pacmap = pacmap_model.transform(X=X_test_encoded)
 
     print(f"PaCMAP training shape: {X_train_pacmap.shape}")
     print(f"PaCMAP test shape: {X_test_pacmap.shape}")
@@ -445,9 +445,9 @@ def _(mo):
     Do the 2D embeddings retain enough information for a classifier to distinguish between
     classes? We fit an Optuna-tuned random forest on three representations:
 
-    1. **Raw encoded features** (10 dimensions) — the full one-hot encoded feature set
-    2. **PCA embedding** (2 dimensions) — linear projection
-    3. **PaCMAP embedding** (2 dimensions) — non-linear projection
+    1. **Raw encoded features** (10 dimensions): the full one-hot encoded feature set
+    2. **PCA embedding** (2 dimensions): linear projection
+    3. **PaCMAP embedding** (2 dimensions): non-linear projection
 
     Each model is tuned with 50 Optuna trials using ROC AUC as the scoring metric, appropriate
     for the imbalanced class distribution.
@@ -513,10 +513,10 @@ def _(
         random_state=42,
         n_jobs=-1,
     )
-    _rf_raw_model.fit(X_train_encoded, y_train)
+    _rf_raw_model.fit(X=X_train_encoded, y=y_train)
 
-    rf_raw_proba = _rf_raw_model.predict_proba(X_test_encoded)[:, 1]
-    rf_raw_pred = _rf_raw_model.predict(X_test_encoded)
+    rf_raw_proba = _rf_raw_model.predict_proba(X=X_test_encoded)[:, 1]
+    rf_raw_pred = _rf_raw_model.predict(X=X_test_encoded)
     return rf_raw_pred, rf_raw_proba
 
 
@@ -578,10 +578,10 @@ def _(
         random_state=42,
         n_jobs=-1,
     )
-    _rf_pca_model.fit(X_train_pca, y_train)
+    _rf_pca_model.fit(X=X_train_pca, y=y_train)
 
-    rf_pca_proba = _rf_pca_model.predict_proba(X_test_pca)[:, 1]
-    rf_pca_pred = _rf_pca_model.predict(X_test_pca)
+    rf_pca_proba = _rf_pca_model.predict_proba(X=X_test_pca)[:, 1]
+    rf_pca_pred = _rf_pca_model.predict(X=X_test_pca)
     return rf_pca_pred, rf_pca_proba
 
 
@@ -643,10 +643,10 @@ def _(
         random_state=42,
         n_jobs=-1,
     )
-    _rf_pacmap_model.fit(X_train_pacmap, y_train)
+    _rf_pacmap_model.fit(X=X_train_pacmap, y=y_train)
 
-    rf_pacmap_proba = _rf_pacmap_model.predict_proba(X_test_pacmap)[:, 1]
-    rf_pacmap_pred = _rf_pacmap_model.predict(X_test_pacmap)
+    rf_pacmap_proba = _rf_pacmap_model.predict_proba(X=X_test_pacmap)[:, 1]
+    rf_pacmap_pred = _rf_pacmap_model.predict(X=X_test_pacmap)
     return rf_pacmap_pred, rf_pacmap_proba
 
 
@@ -695,11 +695,11 @@ def _(
 
     for _name, _pred, _proba in _models:
         _names.append(_name)
-        _accuracies.append(accuracy_score(y_test, _pred))
-        _precisions.append(precision_score(y_test, _pred))
-        _recalls.append(recall_score(y_test, _pred))
-        _f1s.append(f1_score(y_test, _pred))
-        _aucs.append(roc_auc_score(y_test, _proba))
+        _accuracies.append(accuracy_score(y_true=y_test, y_pred=_pred))
+        _precisions.append(precision_score(y_true=y_test, y_pred=_pred))
+        _recalls.append(recall_score(y_true=y_test, y_pred=_pred))
+        _f1s.append(f1_score(y_true=y_test, y_pred=_pred))
+        _aucs.append(roc_auc_score(y_true=y_test, y_score=_proba))
 
     summary_df = pl.DataFrame({
         "Model": _names,
@@ -784,8 +784,8 @@ def _(
     _fig, _ax = plt.subplots(figsize=(8, 5))
 
     for _name, _proba in _models:
-        _fpr, _tpr, _ = roc_curve(y_test, _proba)
-        _auc = roc_auc_score(y_test, _proba)
+        _fpr, _tpr, _ = roc_curve(y_true=y_test, y_score=_proba)
+        _auc = roc_auc_score(y_true=y_test, y_score=_proba)
         _ax.plot(
             _fpr,
             _tpr,

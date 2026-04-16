@@ -9,7 +9,6 @@ def _():
     import marimo as mo
 
     import pathlib
-    import re
 
     import matplotlib.pyplot as plt
     import numpy as np
@@ -17,7 +16,6 @@ def _():
     import polars as pl
     import seaborn as sns
     from sentence_transformers import SentenceTransformer
-    from sklearn.cluster import HDBSCAN
     from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.metrics.pairwise import cosine_similarity
 
@@ -117,7 +115,7 @@ def _(TfidfVectorizer, all_texts):
         min_df=3,
         stop_words='english',
     )
-    tfidf_vectors = tfidf_model.fit_transform(all_texts)
+    tfidf_vectors = tfidf_model.fit_transform(raw_documents=all_texts)
     tfidf_vectors.shape
     return tfidf_model, tfidf_vectors
 
@@ -157,8 +155,8 @@ def _(mo):
 @app.cell
 def _(cosine_similarity, test_idx, tfidf_vectors):
     test_sims = cosine_similarity(
-        tfidf_vectors[test_idx],
-        tfidf_vectors,
+        X=tfidf_vectors[test_idx],
+        Y=tfidf_vectors,
     )
     return (test_sims,)
 
@@ -237,7 +235,7 @@ def _(mo):
 @app.cell
 def _(pacmap, tfidf_vectors):
     pacmap_reducer = pacmap.PaCMAP()
-    pacmap_embeddings = pacmap_reducer.fit_transform(tfidf_vectors.toarray())
+    pacmap_embeddings = pacmap_reducer.fit_transform(X=tfidf_vectors.toarray())
     return (pacmap_embeddings,)
 
 
@@ -314,18 +312,18 @@ def _(SentenceTransformer, all_texts, pacmap, pathlib, pl):
         st_embeddings_df = pl.read_parquet(st_model_embeddings_filepath)
     else:
         st_embedding_array = st_model.encode(
-            all_texts,
+            sentences=all_texts,
             batch_size=64,
             show_progress_bar=True,
         )
-    
+
         _pacmap_reducer = pacmap.PaCMAP()
-        _st_pacmap_embeddings = _pacmap_reducer.fit_transform(st_embedding_array)
+        _st_pacmap_embeddings = _pacmap_reducer.fit_transform(X=st_embedding_array)
 
         st_embeddings_df = pl.DataFrame({
             'text': all_texts,
             'st_embeddings': st_embedding_array,
-            'pacmap_embeddings': _st_pacmap_embeddings
+            'pacmap_embeddings': _st_pacmap_embeddings,
         })
         st_embeddings_df.write_parquet(st_model_embeddings_filepath)
     return st_embeddings_df, st_model
@@ -382,8 +380,8 @@ def _(all_texts, cosine_similarity, np, st_embeddings_df):
     _test_text = all_texts[_test_idx]
 
     _test_sims = cosine_similarity(
-        _st_embeddings[_test_idx].reshape(1, -1),
-        _st_embeddings,
+        X=_st_embeddings[_test_idx].reshape(1, -1),
+        Y=_st_embeddings,
     )
 
     _similar_indices = np.argsort(_test_sims.flatten())[-6:][::-1]
@@ -411,14 +409,14 @@ def _(mo):
 def _(all_texts, cosine_similarity, np, st_embeddings_df, st_model):
     my_sentence = "This GPU is very disappointing. It overheats and constantly shuts off. Very disappointed!!!"
     my_sentence_embedding = st_model.encode(
-        [my_sentence]
+        sentences=[my_sentence],
     )
 
     _st_embeddings = st_embeddings_df['st_embeddings'].to_numpy()
 
     _test_sims = cosine_similarity(
-        my_sentence_embedding,
-        _st_embeddings,
+        X=my_sentence_embedding,
+        Y=_st_embeddings,
     )
 
     _similar_indices = np.argsort(_test_sims.flatten())[-6:][::-1]

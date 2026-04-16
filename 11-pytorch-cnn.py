@@ -32,7 +32,7 @@ def _():
     )
     print(f"Using device: {device}")
     if use_bfloat16:
-        print("bfloat16 supported — enabling mixed-precision training")
+        print("bfloat16 supported, enabling mixed-precision training")
     return (
         ConfusionMatrixDisplay,
         DataLoader,
@@ -61,11 +61,11 @@ def _(mo):
     This notebook compares two neural network architectures for handwritten digit
     classification on the MNIST dataset:
 
-    1. **Feedforward Neural Network** — the fully connected architecture from the
+    1. **Feedforward Neural Network**: the fully connected architecture from the
        previous notebook, which treats each pixel as an independent feature
-    2. **Convolutional Neural Network (CNN)** — an architecture that exploits the
+    2. **Convolutional Neural Network (CNN)**: an architecture that exploits the
        spatial structure of images through local receptive fields and weight sharing
-    3. **Side-by-side comparison** — training dynamics, classification metrics, and
+    3. **Side-by-side comparison**: training dynamics, classification metrics, and
        confusion matrices for both models under identical training conditions
     """)
     return
@@ -330,7 +330,7 @@ def _(device, nn, torch, use_bfloat16):
             _val_accuracies.append(_val_correct / _val_total)
 
             print(
-                f"Epoch {_epoch + 1:2d}/{num_epochs} — "
+                f"Epoch {_epoch + 1:2d}/{num_epochs} | "
                 f"Train Loss: {_epoch_train_loss:.4f}, Train Acc: {_epoch_train_acc:.4f}, "
                 f"Val Loss: {_val_losses[-1]:.4f}, Val Acc: {_val_accuracies[-1]:.4f}"
             )
@@ -358,10 +358,10 @@ def _(mo):
 
     The training loop repeats these steps for each mini-batch across multiple epochs:
 
-    1. **Forward pass** — compute predictions: $\hat{\mathbf{y}} = f(\mathbf{X}; \theta)$
-    2. **Compute loss** — cross-entropy loss measures prediction error
-    3. **Backward pass** — compute gradients: $\nabla_\theta \mathcal{L}$
-    4. **Update weights** — the optimizer adjusts parameters: $\theta \leftarrow \theta - \alpha \nabla_\theta \mathcal{L}$
+    1. **Forward pass**: compute predictions $\hat{\mathbf{y}} = f(\mathbf{X}; \theta)$
+    2. **Compute loss**: cross-entropy loss measures prediction error
+    3. **Backward pass**: compute gradients $\nabla_\theta \mathcal{L}$
+    4. **Update weights**: the optimizer adjusts parameters, $\theta \leftarrow \theta - \alpha \nabla_\theta \mathcal{L}$
 
     | Hyperparameter | Value | Rationale |
     |---------------|-------|-----------|
@@ -453,12 +453,12 @@ def _(mo):
 
     Convolutional neural networks address this by introducing three key ideas:
 
-    - **Local receptive fields** — each neuron connects to a small patch of the input
+    - **Local receptive fields**: each neuron connects to a small patch of the input
       (e.g., 3x3 pixels) rather than the entire image, so it learns local patterns
       like edges and corners
-    - **Weight sharing** — the same filter (kernel) slides across every position in the
+    - **Weight sharing**: the same filter (kernel) slides across every position in the
       image, so a pattern learned in one location is detected everywhere
-    - **Pooling** — max pooling reduces spatial dimensions by summarizing small
+    - **Pooling**: max pooling reduces spatial dimensions by summarizing small
       regions, providing some translation invariance and reducing computation
     """)
     return
@@ -474,7 +474,7 @@ def _(mo):
 
     | Layer | Output Shape | Parameters |
     |---|---|---|
-    | Input | 1 x 28 x 28 | — |
+    | Input | 1 x 28 x 28 | n/a |
     | Conv2d(1, 32, 3) + ReLU | 32 x 26 x 26 | 320 |
     | MaxPool2d(2) | 32 x 13 x 13 | 0 |
     | Conv2d(32, 64, 3) + ReLU | 64 x 11 x 11 | 18,496 |
@@ -744,15 +744,15 @@ def _(
 
     for _name, _pred in _models:
         _names.append(_name)
-        _accuracies.append(accuracy_score(y_test, _pred))
+        _accuracies.append(accuracy_score(y_true=y_test, y_pred=_pred))
         _precisions.append(
-            precision_score(y_test, _pred, average="weighted"),
+            precision_score(y_true=y_test, y_pred=_pred, average="weighted"),
         )
         _recalls.append(
-            recall_score(y_test, _pred, average="weighted"),
+            recall_score(y_true=y_test, y_pred=_pred, average="weighted"),
         )
         _f1s.append(
-            f1_score(y_test, _pred, average="weighted"),
+            f1_score(y_true=y_test, y_pred=_pred, average="weighted"),
         )
 
     _summary_df = pl.DataFrame({
@@ -822,12 +822,12 @@ def _(mo):
 
     **Where to go from here:**
 
-    - **Regularization** — dropout layers and batch normalization to reduce overfitting
-    - **Deeper architectures** — adding more convolutional blocks or using residual
+    - **Regularization**: dropout layers and batch normalization to reduce overfitting
+    - **Deeper architectures**: adding more convolutional blocks or using residual
       connections (ResNets)
-    - **Data augmentation** — random rotations, shifts, and scaling to increase the
+    - **Data augmentation**: random rotations, shifts, and scaling to increase the
       effective training set size
-    - **GPU acceleration** — this notebook automatically uses CUDA when available;
+    - **GPU acceleration**: this notebook automatically uses CUDA when available;
       run with the `gpu` environment in pixi for GPU-accelerated training
     """)
     return

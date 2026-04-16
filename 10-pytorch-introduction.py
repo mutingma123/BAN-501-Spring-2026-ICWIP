@@ -53,11 +53,11 @@ def _(mo):
     This notebook introduces **PyTorch** by building a feedforward neural network for
     handwritten digit classification on the MNIST dataset. We cover:
 
-    1. **PyTorch fundamentals** — tensors, autograd, `nn.Module`
-    2. **Data preparation** — scaling, tensors, DataLoaders
-    3. **Model definition** — a two-hidden-layer feedforward network
-    4. **Training loop** — forward pass, loss, backpropagation, optimizer step
-    5. **Evaluation** — comparison against a Random Forest baseline
+    1. **PyTorch fundamentals**: tensors, autograd, `nn.Module`
+    2. **Data preparation**: scaling, tensors, DataLoaders
+    3. **Model definition**: a two-hidden-layer feedforward network
+    4. **Training loop**: forward pass, loss, backpropagation, optimizer step
+    5. **Evaluation**: comparison against a Random Forest baseline
     """)
     return
 
@@ -69,11 +69,11 @@ def _(mo):
 
     PyTorch is an open-source deep learning framework built around four core ideas:
 
-    - **Tensors** — multi-dimensional arrays (like NumPy arrays) that can run on GPUs
-    - **Autograd** — automatic differentiation that tracks operations on tensors and computes
+    - **Tensors**: multi-dimensional arrays (like NumPy arrays) that can run on GPUs
+    - **Autograd**: automatic differentiation that tracks operations on tensors and computes
       gradients for backpropagation
-    - **`nn.Module`** — a base class for defining neural network layers and architectures
-    - **Optimizers** — algorithms (e.g., Adam, SGD) that update model parameters using the
+    - **`nn.Module`**: a base class for defining neural network layers and architectures
+    - **Optimizers**: algorithms (e.g., Adam, SGD) that update model parameters using the
       computed gradients
 
     The typical PyTorch workflow is:
@@ -260,7 +260,7 @@ def _(mo):
 
     The ReLU (Rectified Linear Unit) activation function $f(x) = \max(0, x)$ introduces
     non-linearity, allowing the network to learn complex decision boundaries. The output
-    layer produces raw scores (logits) for each class — the loss function handles
+    layer produces raw scores (logits) for each class, and the loss function handles
     converting these to probabilities.
     """)
     return
@@ -294,10 +294,10 @@ def _(mo):
 
     The training loop repeats these steps for each mini-batch across multiple epochs:
 
-    1. **Forward pass** — compute predictions: $\hat{\mathbf{y}} = f(\mathbf{X}; \theta)$
-    2. **Compute loss** — cross-entropy loss measures prediction error
-    3. **Backward pass** — compute gradients: $\nabla_\theta \mathcal{L}$
-    4. **Update weights** — the optimizer adjusts parameters: $\theta \leftarrow \theta - \alpha \nabla_\theta \mathcal{L}$
+    1. **Forward pass**: compute predictions $\hat{\mathbf{y}} = f(\mathbf{X}; \theta)$
+    2. **Compute loss**: cross-entropy loss measures prediction error
+    3. **Backward pass**: compute gradients $\nabla_\theta \mathcal{L}$
+    4. **Update weights**: the optimizer adjusts parameters, $\theta \leftarrow \theta - \alpha \nabla_\theta \mathcal{L}$
 
     | Hyperparameter | Value | Rationale |
     |---------------|-------|-----------|
@@ -366,7 +366,7 @@ def _(X_test_tensor, model, nn, torch, train_loader, val_loader):
         val_accuracies.append(_val_correct / _val_total)
 
         print(
-            f"Epoch {_epoch + 1:2d}/{NUM_EPOCHS} — "
+            f"Epoch {_epoch + 1:2d}/{NUM_EPOCHS} | "
             f"Train Loss: {_train_loss:.4f}, Train Acc: {_train_acc:.4f}, "
             f"Val Loss: {val_losses[-1]:.4f}, Val Acc: {val_accuracies[-1]:.4f}"
         )
@@ -479,9 +479,9 @@ def _(RandomForestClassifier, X_test, X_train, y_train):
         random_state=42,
         n_jobs=-1,
     )
-    _rf_model.fit(X_train, y_train)
+    _rf_model.fit(X=X_train, y=y_train)
 
-    rf_predictions = _rf_model.predict(X_test)
+    rf_predictions = _rf_model.predict(X=X_test)
     return (rf_predictions,)
 
 
@@ -517,15 +517,15 @@ def _(
 
     for _name, _pred in _models:
         _names.append(_name)
-        _accuracies.append(accuracy_score(y_test, _pred))
+        _accuracies.append(accuracy_score(y_true=y_test, y_pred=_pred))
         _precisions.append(
-            precision_score(y_test, _pred, average="weighted"),
+            precision_score(y_true=y_test, y_pred=_pred, average="weighted"),
         )
         _recalls.append(
-            recall_score(y_test, _pred, average="weighted"),
+            recall_score(y_true=y_test, y_pred=_pred, average="weighted"),
         )
         _f1s.append(
-            f1_score(y_test, _pred, average="weighted"),
+            f1_score(y_true=y_test, y_pred=_pred, average="weighted"),
         )
 
     _summary_df = pl.DataFrame({
@@ -590,11 +590,11 @@ def _(mo):
 
     **Where to go from here:**
 
-    - **Convolutional Neural Networks (CNNs)** — exploit spatial structure in images rather
+    - **Convolutional Neural Networks (CNNs)**: exploit spatial structure in images rather
       than treating pixels as independent features
-    - **Regularization** — dropout layers and weight decay to reduce overfitting
-    - **GPU acceleration** — move tensors to GPU with `.to("cuda")` for faster training
-    - **Learning rate scheduling** — adjust the learning rate during training for better
+    - **Regularization**: dropout layers and weight decay to reduce overfitting
+    - **GPU acceleration**: move tensors to GPU with `.to("cuda")` for faster training
+    - **Learning rate scheduling**: adjust the learning rate during training for better
       convergence
     """)
     return

@@ -135,7 +135,7 @@ def _(raw_data):
     ).sample(
         n=10_000,
         seed=42,
-        shuffle=True
+        shuffle=True,
     )
 
     model_data.group_by(
@@ -146,8 +146,7 @@ def _(raw_data):
 
 @app.cell
 def _(model_data, smf, target_column):
-    feature_columns = set(model_data.columns) - set([target_column])
-    feature_columns = list(feature_columns)
+    feature_columns = list(set(model_data.columns) - {target_column})
 
     feature_sum = ' + '.join(feature_columns)
     formula = f'{target_column} ~ {feature_sum}'
@@ -165,7 +164,7 @@ def _(model_data, smf, target_column):
 @app.cell
 def _(log_reg, model_data):
     actuals = model_data['y'].to_numpy()
-    predicted_probabilities = log_reg.predict(model_data.to_pandas()).values
+    predicted_probabilities = log_reg.predict(exog=model_data.to_pandas()).values
     return actuals, predicted_probabilities
 
 
@@ -235,10 +234,10 @@ def _(mo):
 
     From these, we compute:
 
-    - **Accuracy** = (TP + TN) / Total — Overall correctness, but misleading with imbalanced classes
-    - **Recall** (Sensitivity) = TP / (TP + FN) — Of all actual positives, how many did we catch?
-    - **Precision** = TP / (TP + FP) — Of all positive predictions, how many were correct?
-    - **F1 Score** = 2 × (Precision × Recall) / (Precision + Recall) — Harmonic mean of precision and recall
+    - **Accuracy** = (TP + TN) / Total: overall correctness, but misleading with imbalanced classes
+    - **Recall** (Sensitivity) = TP / (TP + FN): of all actual positives, how many did we catch?
+    - **Precision** = TP / (TP + FP): of all positive predictions, how many were correct?
+    - **F1 Score** = 2 × (Precision × Recall) / (Precision + Recall): harmonic mean of precision and recall
 
     For this bank marketing problem:
     - **High recall** means we contact most potential subscribers (but waste effort on non-subscribers)

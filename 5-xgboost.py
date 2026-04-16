@@ -170,12 +170,12 @@ def _(
     )
 
     # Fit on training data only (accepts polars DataFrames directly)
-    encoder.fit(X_train.select(categorical_features))
+    encoder.fit(X=X_train.select(categorical_features))
 
     # Transform returns polars DataFrames with set_output
     encoder.set_output(transform="polars")
-    _X_train_cat = encoder.transform(X_train.select(categorical_features))
-    _X_test_cat = encoder.transform(X_test.select(categorical_features))
+    _X_train_cat = encoder.transform(X=X_train.select(categorical_features))
+    _X_test_cat = encoder.transform(X=X_test.select(categorical_features))
 
     # Combine numeric + encoded categorical using polars concat
     X_train_encoded = pl.concat([
@@ -273,11 +273,11 @@ def _(
         random_state=42,
         n_jobs=-1,
     )
-    xgb_model.fit(X_train_encoded, y_train)
+    xgb_model.fit(X=X_train_encoded, y=y_train)
 
     # Predict on test set
-    xgb_proba = xgb_model.predict_proba(X_test_encoded)[:, 1]
-    xgb_pred = xgb_model.predict(X_test_encoded)
+    xgb_proba = xgb_model.predict_proba(X=X_test_encoded)[:, 1]
+    xgb_pred = xgb_model.predict(X=X_test_encoded)
     return xgb_model, xgb_pred, xgb_proba
 
 
@@ -344,11 +344,11 @@ def _(
         random_state=42,
         n_jobs=1,
     )
-    rf_optuna_model.fit(X_train_encoded, y_train)
+    rf_optuna_model.fit(X=X_train_encoded, y=y_train)
 
     # Predict on test set
-    rf_optuna_proba = rf_optuna_model.predict_proba(X_test_encoded)[:, 1]
-    rf_optuna_pred = rf_optuna_model.predict(X_test_encoded)
+    rf_optuna_proba = rf_optuna_model.predict_proba(X=X_test_encoded)[:, 1]
+    rf_optuna_pred = rf_optuna_model.predict(X=X_test_encoded)
     return rf_optuna_model, rf_optuna_pred, rf_optuna_proba
 
 
@@ -411,8 +411,8 @@ def _(plt, rf_optuna_proba, roc_auc_score, roc_curve, xgb_proba, y_test):
     _fig, _ax = plt.subplots(figsize=(8, 6))
 
     for _name, _proba in _models:
-        _fpr, _tpr, _ = roc_curve(y_test, _proba)
-        _auc = roc_auc_score(y_test, _proba)
+        _fpr, _tpr, _ = roc_curve(y_true=y_test, y_score=_proba)
+        _auc = roc_auc_score(y_true=y_test, y_score=_proba)
         _ax.plot(
             _fpr,
             _tpr,
@@ -437,8 +437,8 @@ def _(plt, rf_optuna_proba, roc_auc_score, roc_curve, xgb_proba, y_test):
     plt.show()
 
     # Store AUC values for summary table
-    xgb_auc = roc_auc_score(y_test, xgb_proba)
-    rf_optuna_auc = roc_auc_score(y_test, rf_optuna_proba)
+    xgb_auc = roc_auc_score(y_true=y_test, y_score=xgb_proba)
+    rf_optuna_auc = roc_auc_score(y_true=y_test, y_score=rf_optuna_proba)
     return rf_optuna_auc, xgb_auc
 
 
@@ -575,10 +575,10 @@ def _(
 
     for _name, _pred, _auc in _models:
         _names.append(_name)
-        _accuracies.append(accuracy_score(y_test, _pred))
-        _precisions.append(precision_score(y_test, _pred))
-        _recalls.append(recall_score(y_test, _pred))
-        _f1s.append(f1_score(y_test, _pred))
+        _accuracies.append(accuracy_score(y_true=y_test, y_pred=_pred))
+        _precisions.append(precision_score(y_true=y_test, y_pred=_pred))
+        _recalls.append(recall_score(y_true=y_test, y_pred=_pred))
+        _f1s.append(f1_score(y_true=y_test, y_pred=_pred))
         _aucs.append(_auc)
 
     summary_df = pl.DataFrame({

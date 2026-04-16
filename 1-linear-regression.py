@@ -48,8 +48,7 @@ def _(np, plt, sns):
         high=jitter,
         size=N,
     )
-    x = list(range(1, N+1))
-    x = np.array(x)
+    x = np.array(list(range(1, N+1)))
     y = m_true*x + b_true + noise
 
     _fig, _ax = plt.subplots(1, 1, figsize=(4, 3))
@@ -92,9 +91,9 @@ def _(np, plt, sns):
     num_neighbors = 100
 
     theta_values = np.linspace(
-        start=0, 
-        stop=2*np.pi, 
-        num=num_neighbors+1
+        start=0,
+        stop=2*np.pi,
+        num=num_neighbors+1,
     )
     neighbor_m_values = neighbor_radius*np.cos(theta_values)
     neighbor_b_values = neighbor_radius*np.sin(theta_values)
@@ -104,7 +103,7 @@ def _(np, plt, sns):
     sns.scatterplot(
         x=neighbor_m_values,
         y=neighbor_b_values,
-        edgecolor='k'
+        edgecolor='k',
     )
     _ax.plot(
         0.0,
@@ -167,7 +166,7 @@ def _(neighbor_b_values, neighbor_m_values, np, x, y):
         # Sum across columns (axis=1) to get one SSE value per neighbor
         neighbor_sse = neighbor_squared_errors.sum(axis=1)
         neighbor_min_sse = neighbor_sse.min()
-        if  neighbor_min_sse < best_sse:
+        if neighbor_min_sse < best_sse:
             improvements_made = True
             min_index = np.argmin(neighbor_sse)
             m_hat = neighbor_m_array[min_index]
@@ -231,9 +230,8 @@ def _(pl, smf, x, y):
 
     ols_reg = smf.ols(
         data=reg_data,
-        formula = 'y ~ x'
-    )
-    ols_reg = ols_reg.fit()
+        formula='y ~ x',
+    ).fit()
     print(ols_reg.summary())
     return
 

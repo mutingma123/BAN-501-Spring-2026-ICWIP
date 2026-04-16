@@ -30,7 +30,7 @@ def _():
     use_bfloat16 = torch.cuda.is_available() and torch.cuda.is_bf16_supported()
     print(f"Using device: {device}")
     if use_bfloat16:
-        print("bfloat16 supported — enabling mixed-precision training")
+        print("bfloat16 supported, enabling mixed-precision training")
     return (
         AutoModel,
         AutoModelForSequenceClassification,
@@ -63,8 +63,8 @@ def _(mo):
     five-point scale. It covers three main ideas: (i) how transformers produce
     context-sensitive token representations, contrasted with static word embeddings;
     (ii) how a pre-trained backbone can be adapted for classification by attaching a
-    trainable head; and (iii) how a two-phase training strategy — training the head only
-    first, then fully fine-tuning all layers — affects convergence and final accuracy.
+    trainable head; and (iii) how a two-phase training strategy (training the head only
+    first, then fully fine-tuning all layers) affects convergence and final accuracy.
 
     The dataset contains 10,000 Amazon product reviews, each labeled with a star rating
     from 1 to 5.
@@ -89,7 +89,7 @@ def _(mo):
 
 @app.cell
 def _():
-    # Configuration — adjust these for faster demos or full training
+    # Configuration: adjust these for faster demos or full training
     SAMPLE_SIZE = None  # Set to None to use all 10,000 samples
     MAX_LENGTH = 128  # Max tokens per review
     BATCH_SIZE = 16
@@ -133,7 +133,7 @@ def _(SAMPLE_SIZE, np, pathlib, pl):
     # Load Amazon reviews and convert ratings to integer labels (0-4)
     _df = pl.read_parquet(data_filepath)
     _df = _df.with_columns(
-        label = (pl.col("rating").cast(pl.Int32) - 1)
+        label=(pl.col("rating").cast(pl.Int32) - 1),
     )
 
     if SAMPLE_SIZE is not None:
@@ -203,7 +203,7 @@ def _(mo):
 
     DistilBERT uses a WordPiece tokenizer that breaks each word into subword pieces.
     Common words map to a single token, while rare or compound words are split into
-    recognizable fragments — for example, "tokenization" might become `["token",
+    recognizable fragments. For example, "tokenization" might become `["token",
     "##ization"]`, where `##` marks a continuation piece. This scheme keeps the
     vocabulary finite while still handling any word a reviewer might use.
 
@@ -286,7 +286,7 @@ def _(mo):
 
     The self-attention mechanism in each transformer layer lets every token gather
     information from every other token in the sequence. As a result, the hidden state for
-    a token changes depending on the surrounding words — this is what makes transformer
+    a token changes depending on the surrounding words, which is what makes transformer
     representations *contextual*.
 
     The classic example is the pronoun "it": in "the cat didn't cross the road because it
@@ -560,7 +560,7 @@ def _(mo):
 
 @app.cell
 def _(AutoModelForSequenceClassification, MODEL_NAME, device, torch):
-    # Load model with frozen base — only classification head is trainable
+    # Load model with frozen base; only classification head is trainable
     torch.manual_seed(42)
 
     model_frozen = AutoModelForSequenceClassification.from_pretrained(
@@ -695,7 +695,7 @@ def _(mo):
     ## Phase 1 Training
 
     With the base frozen, only the classification head updates. The model should converge
-    quickly because it can use DistilBERT's pretrained [CLS] representation directly —
+    quickly because it can use DistilBERT's pretrained [CLS] representation directly,
     but peak accuracy is bounded by how well that fixed representation captures the
     sentiment signal needed for star-rating prediction.
     """)
@@ -748,7 +748,7 @@ def _(
         head_only_history["val_acc"].append(_val_acc)
 
         print(
-            f"Epoch {_epoch + 1}/{EPOCHS_HEAD_ONLY} — "
+            f"Epoch {_epoch + 1}/{EPOCHS_HEAD_ONLY} | "
             f"Train Loss: {_train_loss:.4f}, Train Acc: {_train_acc:.4f}, "
             f"Val Loss: {_val_results['loss']:.4f}, Val Acc: {_val_acc:.4f}"
         )
@@ -796,7 +796,7 @@ def _(head_only_history, plt):
     )
     _ax1.set_xlabel("Epoch")
     _ax1.set_ylabel("Loss")
-    _ax1.set_title("Phase 1: Head Only — Loss")
+    _ax1.set_title("Phase 1: Head Only Loss")
     _ax1.legend()
 
     _ax2.plot(
@@ -815,7 +815,7 @@ def _(head_only_history, plt):
     )
     _ax2.set_xlabel("Epoch")
     _ax2.set_ylabel("Accuracy")
-    _ax2.set_title("Phase 1: Head Only — Accuracy")
+    _ax2.set_title("Phase 1: Head Only Accuracy")
     _ax2.legend()
 
     plt.tight_layout()
@@ -841,7 +841,7 @@ def _(mo):
 
 @app.cell
 def _(AutoModelForSequenceClassification, MODEL_NAME, device, torch):
-    # Load fresh model for full fine-tuning — all parameters trainable
+    # Load fresh model for full fine-tuning; all parameters trainable
     torch.manual_seed(42)
 
     model_full = AutoModelForSequenceClassification.from_pretrained(
@@ -918,7 +918,7 @@ def _(
         full_finetune_history["val_acc"].append(_val_acc)
 
         print(
-            f"Epoch {_epoch + 1}/{EPOCHS_FULL_FINETUNE} — "
+            f"Epoch {_epoch + 1}/{EPOCHS_FULL_FINETUNE} | "
             f"Train Loss: {_train_loss:.4f}, Train Acc: {_train_acc:.4f}, "
             f"Val Loss: {_val_results['loss']:.4f}, Val Acc: {_val_acc:.4f}"
         )
@@ -966,7 +966,7 @@ def _(full_finetune_history, plt):
     )
     _ax1.set_xlabel("Epoch")
     _ax1.set_ylabel("Loss")
-    _ax1.set_title("Phase 2: Full Fine-tuning — Loss")
+    _ax1.set_title("Phase 2: Full Fine-tuning Loss")
     _ax1.legend()
 
     _ax2.plot(
@@ -985,7 +985,7 @@ def _(full_finetune_history, plt):
     )
     _ax2.set_xlabel("Epoch")
     _ax2.set_ylabel("Accuracy")
-    _ax2.set_title("Phase 2: Full Fine-tuning — Accuracy")
+    _ax2.set_title("Phase 2: Full Fine-tuning Accuracy")
     _ax2.legend()
 
     plt.tight_layout()
@@ -1056,7 +1056,7 @@ def _(mo):
     mo.md(r"""
     ## Error Analysis
 
-    The heatmap below shows only the misclassified examples — correct predictions along
+    The heatmap below shows only the misclassified examples; correct predictions along
     the diagonal are excluded. Adjacent star ratings tend to generate the most errors
     because the sentiment difference between, say, 3-star and 4-star is subtler than
     between 1-star and 5-star. A well-calibrated model should show errors concentrated

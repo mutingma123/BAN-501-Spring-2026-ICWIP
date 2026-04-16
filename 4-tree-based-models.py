@@ -174,12 +174,12 @@ def _(
     )
 
     # Fit on training data only (accepts polars DataFrames directly)
-    encoder.fit(X_train.select(categorical_features))
+    encoder.fit(X=X_train.select(categorical_features))
 
     # Transform returns polars DataFrames with set_output
     encoder.set_output(transform="polars")
-    _X_train_cat = encoder.transform(X_train.select(categorical_features))
-    _X_test_cat = encoder.transform(X_test.select(categorical_features))
+    _X_train_cat = encoder.transform(X=X_train.select(categorical_features))
+    _X_test_cat = encoder.transform(X=X_test.select(categorical_features))
 
     # Combine numeric + encoded categorical using polars concat
     X_train_encoded = pl.concat([
@@ -243,7 +243,7 @@ def _(
     print(logit_model.summary())
 
     # Predict on test set
-    logreg_proba = logit_model.predict(_test_df)
+    logreg_proba = logit_model.predict(exog=_test_df)
     logreg_pred = (logreg_proba >= 0.5).astype(int)
     return logreg_pred, logreg_proba
 
@@ -288,7 +288,7 @@ def _(
     )
 
     # Fit with cross-validation
-    _grid_search.fit(X_train_encoded, y_train)
+    _grid_search.fit(X=X_train_encoded, y=y_train)
 
     print(f"Best parameters: {_grid_search.best_params_}")
     print(f"Best CV AUC score: {_grid_search.best_score_:.4f}")
@@ -297,8 +297,8 @@ def _(
     dt_grid_model = _grid_search.best_estimator_
 
     # Predict on test set
-    dt_grid_proba = dt_grid_model.predict_proba(X_test_encoded)[:, 1]
-    dt_grid_pred = dt_grid_model.predict(X_test_encoded)
+    dt_grid_proba = dt_grid_model.predict_proba(X=X_test_encoded)[:, 1]
+    dt_grid_pred = dt_grid_model.predict(X=X_test_encoded)
 
     print(f"Tree depth: {dt_grid_model.get_depth()}")
     print(f"Number of leaves: {dt_grid_model.get_n_leaves()}")
@@ -366,11 +366,11 @@ def _(
         **_dt_study.best_params,
         random_state=42,
     )
-    dt_optuna_model.fit(X_train_encoded, y_train)
+    dt_optuna_model.fit(X=X_train_encoded, y=y_train)
 
     # Predict on test set
-    dt_optuna_proba = dt_optuna_model.predict_proba(X_test_encoded)[:, 1]
-    dt_optuna_pred = dt_optuna_model.predict(X_test_encoded)
+    dt_optuna_proba = dt_optuna_model.predict_proba(X=X_test_encoded)[:, 1]
+    dt_optuna_pred = dt_optuna_model.predict(X=X_test_encoded)
 
     print(f"Tree depth: {dt_optuna_model.get_depth()}")
     print(f"Number of leaves: {dt_optuna_model.get_n_leaves()}")
@@ -420,7 +420,7 @@ def _(
     )
 
     # Fit with cross-validation
-    _grid_search.fit(X_train_encoded, y_train)
+    _grid_search.fit(X=X_train_encoded, y=y_train)
 
     print(f"Best parameters: {_grid_search.best_params_}")
     print(f"Best CV AUC score: {_grid_search.best_score_:.4f}")
@@ -429,8 +429,8 @@ def _(
     rf_grid_model = _grid_search.best_estimator_
 
     # Predict on test set
-    rf_grid_proba = rf_grid_model.predict_proba(X_test_encoded)[:, 1]
-    rf_grid_pred = rf_grid_model.predict(X_test_encoded)
+    rf_grid_proba = rf_grid_model.predict_proba(X=X_test_encoded)[:, 1]
+    rf_grid_pred = rf_grid_model.predict(X=X_test_encoded)
     return rf_grid_pred, rf_grid_proba
 
 
@@ -496,11 +496,11 @@ def _(
         random_state=42,
         n_jobs=1,
     )
-    rf_optuna_model.fit(X_train_encoded, y_train)
+    rf_optuna_model.fit(X=X_train_encoded, y=y_train)
 
     # Predict on test set
-    rf_optuna_proba = rf_optuna_model.predict_proba(X_test_encoded)[:, 1]
-    rf_optuna_pred = rf_optuna_model.predict(X_test_encoded)
+    rf_optuna_proba = rf_optuna_model.predict_proba(X=X_test_encoded)[:, 1]
+    rf_optuna_pred = rf_optuna_model.predict(X=X_test_encoded)
     return rf_optuna_model, rf_optuna_pred, rf_optuna_proba
 
 
@@ -592,8 +592,8 @@ def _(
     _fig, _ax = plt.subplots(figsize=(8, 6))
 
     for _name, _proba in _models:
-        _fpr, _tpr, _ = roc_curve(y_test, _proba)
-        _auc = roc_auc_score(y_test, _proba)
+        _fpr, _tpr, _ = roc_curve(y_true=y_test, y_score=_proba)
+        _auc = roc_auc_score(y_true=y_test, y_score=_proba)
         _ax.plot(
             _fpr,
             _tpr,
@@ -618,11 +618,11 @@ def _(
     plt.show()
 
     # Store AUC values for summary table
-    logreg_auc = roc_auc_score(y_test, logreg_proba)
-    dt_grid_auc = roc_auc_score(y_test, dt_grid_proba)
-    dt_optuna_auc = roc_auc_score(y_test, dt_optuna_proba)
-    rf_grid_auc = roc_auc_score(y_test, rf_grid_proba)
-    rf_optuna_auc = roc_auc_score(y_test, rf_optuna_proba)
+    logreg_auc = roc_auc_score(y_true=y_test, y_score=logreg_proba)
+    dt_grid_auc = roc_auc_score(y_true=y_test, y_score=dt_grid_proba)
+    dt_optuna_auc = roc_auc_score(y_true=y_test, y_score=dt_optuna_proba)
+    rf_grid_auc = roc_auc_score(y_true=y_test, y_score=rf_grid_proba)
+    rf_optuna_auc = roc_auc_score(y_true=y_test, y_score=rf_optuna_proba)
     return dt_grid_auc, dt_optuna_auc, logreg_auc, rf_grid_auc, rf_optuna_auc
 
 
@@ -770,10 +770,10 @@ def _(
 
     for _name, _pred, _auc in _models:
         _names.append(_name)
-        _accuracies.append(accuracy_score(y_test, _pred))
-        _precisions.append(precision_score(y_test, _pred))
-        _recalls.append(recall_score(y_test, _pred))
-        _f1s.append(f1_score(y_test, _pred))
+        _accuracies.append(accuracy_score(y_true=y_test, y_pred=_pred))
+        _precisions.append(precision_score(y_true=y_test, y_pred=_pred))
+        _recalls.append(recall_score(y_true=y_test, y_pred=_pred))
+        _f1s.append(f1_score(y_true=y_test, y_pred=_pred))
         _aucs.append(_auc)
 
     summary_df = pl.DataFrame({

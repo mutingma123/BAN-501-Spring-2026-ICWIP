@@ -13,9 +13,9 @@ def _(mo):
 
     The workflow has three phases:
 
-    1. **Pretrained backbone + custom head** -- freeze the convolutional layers and replace the final classifier
-    2. **Fine-tuning** -- train only the new head while the frozen backbone extracts features
-    3. **Model persistence and inference** -- save the trained weights, reload them, and classify new images
+    1. **Pretrained backbone + custom head**: freeze the convolutional layers and replace the final classifier
+    2. **Fine-tuning**: train only the new head while the frozen backbone extracts features
+    3. **Model persistence and inference**: save the trained weights, reload them, and classify new images
     """)
     return
 
@@ -53,7 +53,7 @@ def _():
     )
     print(f"Using device: {device}")
     if use_bfloat16:
-        print("bfloat16 supported — enabling mixed-precision training")
+        print("bfloat16 supported, enabling mixed-precision training")
     return (
         ConfusionMatrixDisplay,
         DataLoader,
@@ -120,7 +120,7 @@ def _(mo):
 
 @app.cell
 def _(ImageFolder, np, train_test_split, transforms):
-    # ImageNet channel means and stds -- must match the preprocessing
+    # ImageNet channel means and stds, must match the preprocessing
     # the backbone saw during pre-training
     imagenet_transform = transforms.Compose([
         transforms.Resize(232),
@@ -334,7 +334,7 @@ def _(device, nn, np, torch, use_bfloat16):
 
     def train_model(model, train_loader, val_loader, test_loader, num_epochs=10, lr=0.001):
         _criterion = nn.CrossEntropyLoss()
-        # Only pass parameters where requires_grad=True -- the frozen backbone params are excluded
+        # Only pass parameters where requires_grad=True, the frozen backbone params are excluded
         _optimizer = torch.optim.Adam(
             params=filter(lambda _p: _p.requires_grad, model.parameters()),
             lr=lr,
@@ -396,7 +396,7 @@ def _(device, nn, np, torch, use_bfloat16):
             _val_accuracies.append(_val_correct / _val_total)
 
             print(
-                f"Epoch {_epoch + 1:2d}/{num_epochs} — "
+                f"Epoch {_epoch + 1:2d}/{num_epochs} | "
                 f"Train Loss: {_epoch_train_loss:.4f}, Train Acc: {_epoch_train_acc:.4f}, "
                 f"Val Loss: {_val_losses[-1]:.4f}, Val Acc: {_val_accuracies[-1]:.4f}",
                 flush=True,
@@ -566,27 +566,32 @@ def _(
 
     for _name, _result in _models:
         _names.append(_name)
-        _accuracies.append(accuracy_score(_result["labels"], _result["predictions"]))
+        _accuracies.append(
+            accuracy_score(
+                y_true=_result["labels"],
+                y_pred=_result["predictions"],
+            )
+        )
         _precisions.append(
             precision_score(
-                _result["labels"],
-                _result["predictions"],
+                y_true=_result["labels"],
+                y_pred=_result["predictions"],
                 average="binary",
                 pos_label=class_names.index("Selfie"),
             ),
         )
         _recalls.append(
             recall_score(
-                _result["labels"],
-                _result["predictions"],
+                y_true=_result["labels"],
+                y_pred=_result["predictions"],
                 average="binary",
                 pos_label=class_names.index("Selfie"),
             ),
         )
         _f1s.append(
             f1_score(
-                _result["labels"],
-                _result["predictions"],
+                y_true=_result["labels"],
+                y_pred=_result["predictions"],
                 average="binary",
                 pos_label=class_names.index("Selfie"),
             ),
@@ -793,7 +798,7 @@ def _(
     _img_tensor, _true_label = full_dataset[_idx]
 
     print(f"Image tensor shape: {list(_img_tensor.shape)}")
-    print(f"  (channels, height, width) -- already preprocessed by ImageNet transform\n")
+    print(f"  (channels, height, width), already preprocessed by ImageNet transform\n")
 
     # unsqueeze(0) adds the batch dimension: (3, 224, 224) -> (1, 3, 224, 224)
     _input_batch = _img_tensor.unsqueeze(0).to(device)
@@ -922,8 +927,8 @@ def _(mo):
     Three steps replace what `ImageFolder` did automatically:
 
     1. **Open the file** with `PIL.Image.open()` to get a PIL image object
-    2. **Convert to RGB** with `.convert("RGB")` -- some images may be grayscale or RGBA, but the model expects three channels
-    3. **Apply the same preprocessing transform** (`imagenet_transform`) that was used during training -- resize, center-crop, convert to tensor, and normalize with the ImageNet channel statistics
+    2. **Convert to RGB** with `.convert("RGB")` (some images may be grayscale or RGBA, but the model expects three channels)
+    3. **Apply the same preprocessing transform** (`imagenet_transform`) that was used during training: resize, center-crop, convert to tensor, and normalize with the ImageNet channel statistics
 
     After preprocessing, the workflow is identical to the single-image inference above: add a batch dimension, run the forward pass, and read off the predicted class. The example below uses an existing file from the dataset for convenience, but in practice this would be any new image.
     """)

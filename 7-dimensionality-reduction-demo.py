@@ -57,11 +57,11 @@ def _(mo):
     This notebook explores two dimensionality reduction techniques on the MNIST handwritten digit
     dataset:
 
-    - **PCA** (Principal Component Analysis) — a linear method
-    - **PaCMAP** (Pairwise Controlled Manifold Approximation Projection) — a non-linear method
+    - **PCA** (Principal Component Analysis), a linear method
+    - **PaCMAP** (Pairwise Controlled Manifold Approximation Projection), a non-linear method
 
     After visualizing the 2D embeddings, we train random forest classifiers on three
-    representations of the data — raw (784-dim), PCA (2-dim), and PaCMAP (2-dim) — to see how
+    representations of the data (raw (784-dim), PCA (2-dim), and PaCMAP (2-dim)) to see how
     dimensionality reduction affects classification performance.
     """)
     return
@@ -117,7 +117,7 @@ def _(mo):
     PCA is a **linear** dimensionality reduction method. It finds the directions (principal
     components) along which the data varies the most and projects the data onto those axes.
 
-    With only 2 components, we capture the two directions of greatest variance — but for a
+    With only 2 components, we capture the two directions of greatest variance, but for a
     784-dimensional dataset like MNIST, this discards a large amount of information. The 2D
     scatter plot shows some clustering by digit class, though with significant overlap.
     """)
@@ -127,12 +127,12 @@ def _(mo):
 @app.cell
 def _(PCA, StandardScaler, feature_data, plt, sns, target_data):
     scaler = StandardScaler()
-    scaler.fit(feature_data)
-    scaled_features = scaler.transform(feature_data)
+    scaler.fit(X=feature_data)
+    scaled_features = scaler.transform(X=feature_data)
 
     PCA_model = PCA(n_components=2)
-    PCA_model.fit(scaled_features)
-    PCA_feature_data = PCA_model.transform(scaled_features)
+    PCA_model.fit(X=scaled_features)
+    PCA_feature_data = PCA_model.transform(X=scaled_features)
 
     _fig, _ax = plt.subplots(1, 1, figsize=(4, 4))
 
@@ -169,7 +169,7 @@ def _(mo):
 @app.cell
 def _(feature_data, pacmap, plt, sns, target_data):
     pacmap_model = pacmap.PaCMAP(n_components=2)
-    pacmap_feature_data = pacmap_model.fit_transform(feature_data)
+    pacmap_feature_data = pacmap_model.fit_transform(X=feature_data)
 
     _fig, _ax = plt.subplots(1, 1, figsize=(4, 4))
 
@@ -196,9 +196,9 @@ def _(mo):
     Do the 2D embeddings retain enough information for a classifier to distinguish between digit
     classes? We fit an Optuna-tuned random forest on three representations:
 
-    1. **Raw features** (784 dimensions) — the full pixel data
-    2. **PCA embedding** (2 dimensions) — linear projection
-    3. **PaCMAP embedding** (2 dimensions) — non-linear projection
+    1. **Raw features** (784 dimensions): the full pixel data
+    2. **PCA embedding** (2 dimensions): linear projection
+    3. **PaCMAP embedding** (2 dimensions): non-linear projection
 
     We use the same train/test split across all three to ensure a fair comparison.
     """)
@@ -300,9 +300,9 @@ def _(
         random_state=42,
         n_jobs=-1,
     )
-    _rf_raw_model.fit(X_train_raw, y_train.ravel())
+    _rf_raw_model.fit(X=X_train_raw, y=y_train.ravel())
 
-    rf_raw_predictions = _rf_raw_model.predict(X_test_raw)
+    rf_raw_predictions = _rf_raw_model.predict(X=X_test_raw)
     return (rf_raw_predictions,)
 
 
@@ -364,9 +364,9 @@ def _(
         random_state=42,
         n_jobs=-1,
     )
-    _rf_pca_model.fit(X_train_pca, y_train.ravel())
+    _rf_pca_model.fit(X=X_train_pca, y=y_train.ravel())
 
-    rf_pca_predictions = _rf_pca_model.predict(X_test_pca)
+    rf_pca_predictions = _rf_pca_model.predict(X=X_test_pca)
     return (rf_pca_predictions,)
 
 
@@ -428,9 +428,9 @@ def _(
         random_state=42,
         n_jobs=-1,
     )
-    _rf_pacmap_model.fit(X_train_pacmap, y_train.ravel())
+    _rf_pacmap_model.fit(X=X_train_pacmap, y=y_train.ravel())
 
-    rf_pacmap_predictions = _rf_pacmap_model.predict(X_test_pacmap)
+    rf_pacmap_predictions = _rf_pacmap_model.predict(X=X_test_pacmap)
     return (rf_pacmap_predictions,)
 
 
@@ -473,15 +473,15 @@ def _(
 
     for _name, _pred in _models:
         _names.append(_name)
-        _accuracies.append(accuracy_score(y_test, _pred))
+        _accuracies.append(accuracy_score(y_true=y_test, y_pred=_pred))
         _precisions.append(
-            precision_score(y_test, _pred, average="weighted"),
+            precision_score(y_true=y_test, y_pred=_pred, average="weighted"),
         )
         _recalls.append(
-            recall_score(y_test, _pred, average="weighted"),
+            recall_score(y_true=y_test, y_pred=_pred, average="weighted"),
         )
         _f1s.append(
-            f1_score(y_test, _pred, average="weighted"),
+            f1_score(y_true=y_test, y_pred=_pred, average="weighted"),
         )
 
     summary_df = pl.DataFrame({

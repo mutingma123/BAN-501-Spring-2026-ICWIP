@@ -42,8 +42,8 @@ def _(mo):
     mo.md(r"""
     # Concurrency in Python: Threads and Processes
 
-    Many tasks in data science involve waiting — waiting for API responses, waiting for database
-    queries, or waiting for computations to finish. **Concurrency** lets us overlap these waits so
+    Many tasks in data science involve waiting (waiting for API responses, waiting for database
+    queries, or waiting for computations to finish). **Concurrency** lets us overlap these waits so
     programs finish faster.
 
     This notebook demonstrates:
@@ -72,7 +72,7 @@ def _(mo):
 
     ### Hardware Threads (SMT / Hyper-Threading)
 
-    Modern CPUs use **Simultaneous Multithreading (SMT)** — Intel brands this as
+    Modern CPUs use **Simultaneous Multithreading (SMT)**, which Intel brands as
     **Hyper-Threading**. Each physical core presents itself as 2 **logical processors** to the
     operating system. When one hardware thread stalls (e.g., waiting for memory), the other can
     use the core's execution units.
@@ -109,7 +109,7 @@ def _(mo):
     ### Concurrency vs. Parallelism
 
     - **Concurrency** = managing multiple tasks with overlapping lifetimes. The tasks may not run
-      at the exact same instant — they can *interleave* on a single core.
+      at the exact same instant; they can *interleave* on a single core.
     - **Parallelism** = executing multiple tasks *simultaneously* on different cores. Parallelism
       is a subset of concurrency.
 
@@ -156,7 +156,7 @@ def _(mo):
     - Reading hundreds of CSV files from disk
     - Querying a database for multiple tables
 
-    We simulate IO-bound work with `time.sleep(0.5)` — the function does almost no computation
+    We simulate IO-bound work with `time.sleep(0.5)`. The function does almost no computation
     but takes 0.5 seconds of wall-clock time per call.
     """)
     return
@@ -233,8 +233,8 @@ def _(mo):
     model training, data transformation, etc.
 
     We use **trial-division primality testing** on large numbers (~2 billion) as our CPU-bound
-    workload. Each call requires millions of iterations of pure Python arithmetic — exactly the
-    kind of work the GIL serializes.
+    workload. Each call requires millions of iterations of pure Python arithmetic, which is exactly
+    the kind of work the GIL serializes.
     """)
     return
 
@@ -317,7 +317,7 @@ def _(mo):
     `ProcessPoolExecutor` spawns **separate Python processes**, each with its own interpreter
     and its own GIL. This enables true parallelism for CPU-bound tasks.
 
-    The API is nearly identical to `ThreadPoolExecutor` — just swap the class name:
+    The API is nearly identical to `ThreadPoolExecutor`, just swap the class name:
 
     ```python
     with ProcessPoolExecutor(max_workers=4) as executor:
@@ -551,7 +551,7 @@ def _(mo):
       call into C/Fortran code). Threads *can* help for these libraries even though the work is
       CPU-bound.
     - **scikit-learn's `n_jobs` parameter** uses `multiprocessing` (via joblib) under the hood.
-      Setting `n_jobs=-1` uses all available cores — now you know the mechanism behind it.
+      Setting `n_jobs=-1` uses all available cores, and now you know the mechanism behind it.
     - **Start simple.** Write sequential code first, profile to find bottlenecks, then add
       concurrency only where it helps. Premature concurrency adds complexity without guaranteed
       benefit.

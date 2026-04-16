@@ -30,8 +30,8 @@ def _(mo):
 
     This notebook covers two clustering algorithms:
 
-    1. **K-Means** — a centroid-based method that partitions data into $k$ spherical clusters
-    2. **HDBSCAN** — a density-based method that finds clusters of arbitrary shape and identifies noise
+    1. **K-Means**: a centroid-based method that partitions data into $k$ spherical clusters
+    2. **HDBSCAN**: a density-based method that finds clusters of arbitrary shape and identifies noise
 
     We will see where K-Means works well, where it breaks down, and how density-based
     methods address those limitations.
@@ -70,7 +70,7 @@ def _(make_blobs, plt, sns):
     )
     _ax.set_xlabel("Feature 1")
     _ax.set_ylabel("Feature 2")
-    _ax.set_title("Blob Data — True Labels")
+    _ax.set_title("Blob Data: True Labels")
     _ax.legend(
         title="Cluster",
         bbox_to_anchor=(1.01, 1.01),
@@ -126,8 +126,8 @@ def _(blob_features, euclidean_distances, np, plt, sns):
 
     while _delta_wcss > CONVERGENCE_THRESHOLD:
         _center_distances = euclidean_distances(
-            blob_features,
-            _centers,
+            X=blob_features,
+            Y=_centers,
         )
         blob_cluster_assignments = np.argmin(_center_distances, axis=1)
 
@@ -135,8 +135,8 @@ def _(blob_features, euclidean_distances, np, plt, sns):
         for _cluster_id in np.unique(blob_cluster_assignments):
             _mask = blob_cluster_assignments == _cluster_id
             _distances = euclidean_distances(
-                blob_features[_mask],
-                _centers[_cluster_id].reshape(1, -1),
+                X=blob_features[_mask],
+                Y=_centers[_cluster_id].reshape(1, -1),
             )
             _wcss += (_distances.flatten() ** 2).sum()
 
@@ -181,7 +181,7 @@ def _(mo):
 
     K-Means requires us to choose $k$ in advance. The **elbow method** helps by plotting
     WCSS against $k$: as $k$ increases, WCSS always decreases, but the rate of decrease
-    slows. The "elbow" — the point where adding another cluster yields diminishing returns —
+    slows. The "elbow" (the point where adding another cluster yields diminishing returns)
     suggests a good choice for $k$.
     """)
     return
@@ -218,8 +218,8 @@ def _(blob_features, euclidean_distances, np, plt):
             for _cluster_id in np.unique(_assignments):
                 _mask = _assignments == _cluster_id
                 _distances = euclidean_distances(
-                    blob_features[_mask],
-                    _centers[_cluster_id].reshape(1, -1),
+                    X=blob_features[_mask],
+                    Y=_centers[_cluster_id].reshape(1, -1),
                 )
                 _wcss += (_distances.flatten() ** 2).sum()
 
@@ -245,7 +245,7 @@ def _(blob_features, euclidean_distances, np, plt):
     )
     _ax.set_xlabel("Number of Clusters (k)")
     _ax.set_ylabel("WCSS")
-    _ax.set_title("Elbow Method — WCSS vs. k")
+    _ax.set_title("Elbow Method: WCSS vs. k")
     _ax.set_xticks(list(K_RANGE))
 
     plt.tight_layout()
@@ -259,7 +259,7 @@ def _(mo):
     ## When K-Means Fails: Concentric Circles
 
     K-Means assumes clusters are convex and roughly spherical. When the true structure is
-    non-convex — such as concentric rings — K-Means cannot recover the correct groupings
+    non-convex (such as concentric rings), K-Means cannot recover the correct groupings
     regardless of $k$.
 
     Below we generate two concentric circles and visualize the true labels.
@@ -288,7 +288,7 @@ def _(make_circles, plt, sns):
     )
     _ax.set_xlabel("Feature 1")
     _ax.set_ylabel("Feature 2")
-    _ax.set_title("Circle Data — True Labels")
+    _ax.set_title("Circle Data: True Labels")
     _ax.legend(
         title="Ring",
         bbox_to_anchor=(1.01, 1.01),
@@ -307,7 +307,7 @@ def _(mo):
 
     With $k=2$, K-Means will split the data along a linear boundary rather than
     recognizing the ring structure. The algorithm minimizes WCSS, which favors
-    compact, ball-shaped clusters — exactly the wrong inductive bias for this geometry.
+    compact, ball-shaped clusters, exactly the wrong inductive bias for this geometry.
     """)
     return
 
@@ -331,8 +331,8 @@ def _(circle_features, euclidean_distances, np, plt, sns):
 
     while _delta_wcss > CIRCLE_CONVERGENCE_THRESHOLD:
         _center_distances = euclidean_distances(
-            circle_features,
-            _centers,
+            X=circle_features,
+            Y=_centers,
         )
         _circle_kmeans_assignments = np.argmin(_center_distances, axis=1)
 
@@ -340,8 +340,8 @@ def _(circle_features, euclidean_distances, np, plt, sns):
         for _cluster_id in np.unique(_circle_kmeans_assignments):
             _mask = _circle_kmeans_assignments == _cluster_id
             _distances = euclidean_distances(
-                circle_features[_mask],
-                _centers[_cluster_id].reshape(1, -1),
+                X=circle_features[_mask],
+                Y=_centers[_cluster_id].reshape(1, -1),
             )
             _wcss += (_distances.flatten() ** 2).sum()
 
@@ -404,7 +404,7 @@ def _(mo):
 @app.cell
 def _(HDBSCAN, circle_features, plt, sns):
     _clusterer = HDBSCAN()
-    _clusterer.fit(circle_features)
+    _clusterer.fit(X=circle_features)
 
     _fig, _ax = plt.subplots(figsize=(8, 5))
 

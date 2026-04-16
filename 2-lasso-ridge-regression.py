@@ -94,7 +94,7 @@ def _(pathlib, pl):
     # drop_first=True avoids multicollinearity (the "dummy variable trap")
     # by removing one category per variable as the reference level.
     raw_data = raw_data.to_dummies(
-        columns = [
+        columns=[
             _col for _col in raw_data.columns if not raw_data[_col].dtype.is_numeric()
         ],
         drop_first=True,
@@ -154,8 +154,8 @@ def _(StandardScaler, pl, test_data, train_data):
     scaler = StandardScaler()
 
     # Fit on training data, transform both train and test
-    _scaled_features_train = scaler.fit_transform(train_data.select(_feature_cols))
-    _scaled_features_test = scaler.transform(test_data.select(_feature_cols))
+    _scaled_features_train = scaler.fit_transform(X=train_data.select(_feature_cols))
+    _scaled_features_test = scaler.transform(X=test_data.select(_feature_cols))
 
     # Reconstruct DataFrames with scaled features + unscaled intercept and target
     scaled_train_data = pl.DataFrame(
