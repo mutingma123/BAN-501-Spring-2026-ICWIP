@@ -23,7 +23,7 @@ def _():
     from sklearn.model_selection import train_test_split
     from torch.utils.data import DataLoader, Dataset
     from tqdm import tqdm
-    from transformers import AutoModelForSequenceClassification, AutoTokenizer
+    from transformers import AutoModel, AutoModelForSequenceClassification, AutoTokenizer
 
     sns.set_style("whitegrid")
 
@@ -33,6 +33,7 @@ def _():
     if use_bfloat16:
         print("bfloat16 supported — enabling mixed-precision training")
     return (
+        AutoModel,
         AutoModelForSequenceClassification,
         AutoTokenizer,
         ConfusionMatrixDisplay,
@@ -56,7 +57,7 @@ def _():
 @app.cell
 def _():
     # Configuration — adjust these for faster demos or full training
-    SAMPLE_SIZE = None  # Set to None to use all 10,000 samples
+    SAMPLE_SIZE = 2000  # Set to None to use all 10,000 samples
     MAX_LENGTH = 128  # Max tokens per review
     BATCH_SIZE = 16
     LEARNING_RATE = 2e-5
@@ -149,6 +150,145 @@ def _(AutoTokenizer, MODEL_NAME, texts):
     print(f"\nTokenized IDs: {_tokens['input_ids'][:20]}...")
     print(f"Decoded tokens: {tokenizer.convert_ids_to_tokens(_tokens['input_ids'][:20])}")
     return (tokenizer,)
+
+
+@app.cell
+def _(AutoModel, MODEL_NAME, device, tokenizer):
+    # Demonstrate: checking vocabulary and retrieving static embeddings
+    _word = "it"
+
+    # Check if the word is in the tokenizer's vocabulary
+    _in_vocab = _word in tokenizer.vocab
+    print(f"Is '{_word}' in vocabulary? {_in_vocab}")
+
+    # Get the token ID
+    _token_id = tokenizer.convert_tokens_to_ids(_word)
+    print(f"Token ID for '{_word}': {_token_id}")
+
+    # Load the base DistilBERT model (without classification head) to access embeddings
+    _base_model = AutoModel.from_pretrained(MODEL_NAME).to(device)
+
+    # Extract the static embedding from the embedding layer
+    # Note: AutoModel returns DistilBertModel directly, so we access embeddings directly
+    _embedding_layer = _base_model.embeddings.word_embeddings
+    _static_embedding = _embedding_layer.weight[_token_id].detach().cpu()
+
+    print(f"\nStatic embedding shape: {_static_embedding.shape}")
+    print(f"First 10 values: {_static_embedding[:10].numpy()}")
+    return
+
+
+@app.cell
+def _(AutoModel, MODEL_NAME, device, plt, tokenizer, torch):
+    # Demonstrate: contextual embeddings differ based on surrounding words
+    # Classic disambiguation example: "it" refers to different things in each sentence
+
+    _sentence1 = "The cat didn't cross the road because it was tired"
+    _sentence2 = "The cat didn't cross the road because it was wide"
+
+    print("Sentence 1:", _sentence1)
+    print("  → 'it' refers to 'cat' (the cat was tired)")
+    print("\nSentence 2:", _sentence2)
+    print("  → 'it' refers to 'road' (the road was wide)")
+
+    # Tokenize both sentences
+    _tokens1 = tokenizer(
+        _sentence1,
+        return_tensors="pt",
+        padding=True,
+    )
+    _tokens2 = tokenizer(
+        _sentence2,
+        return_tensors="pt",
+        padding=True,
+    )
+
+    # Find the position of "it" in each sentence
+    _token_list1 = tokenizer.convert_ids_to_tokens(_tokens1["input_ids"][0])
+    _token_list2 = tokenizer.convert_ids_to_tokens(_tokens2["input_ids"][0])
+
+    _it_pos1 = _token_list1.index("it")
+    _it_pos2 = _token_list2.index("it")
+    _cat_pos = _token_list1.index("cat")
+    _road_pos = _token_list1.index("road")
+
+    print(f"\nTokens: {_token_list1}")
+    print(f"Position of 'it': {_it_pos1}, 'cat': {_cat_pos}, 'road': {_road_pos}")
+
+    # Load base model and get contextual embeddings
+    _base_model = AutoModel.from_pretrained(MODEL_NAME).to(device)
+    _base_model.eval()
+
+    with torch.no_grad():
+        _outputs1 = _base_model(
+            input_ids=_tokens1["input_ids"].to(device),
+            attention_mask=_tokens1["attention_mask"].to(device),
+        )
+        _outputs2 = _base_model(
+            input_ids=_tokens2["input_ids"].to(device),
+            attention_mask=_tokens2["attention_mask"].to(device),
+        )
+
+    # Extract final layer hidden states
+    _hidden1 = _outputs1.last_hidden_state[0].cpu()
+    _hidden2 = _outputs2.last_hidden_state[0].cpu()
+
+    # Get contextual embeddings for key tokens
+    _it_emb1 = _hidden1[_it_pos1]
+    _it_emb2 = _hidden2[_it_pos2]
+    _cat_emb = _hidden1[_cat_pos]
+    _road_emb = _hidden1[_road_pos]
+
+    # Compute cosine similarities
+    def _cosine_sim(a, b):
+        return torch.nn.functional.cosine_similarity(
+            a.unsqueeze(0),
+            b.unsqueeze(0),
+        ).item()
+
+    _sim_it1_cat = _cosine_sim(_it_emb1, _cat_emb)
+    _sim_it1_road = _cosine_sim(_it_emb1, _road_emb)
+    _sim_it2_cat = _cosine_sim(_it_emb2, _cat_emb)
+    _sim_it2_road = _cosine_sim(_it_emb2, _road_emb)
+    _sim_it1_it2 = _cosine_sim(_it_emb1, _it_emb2)
+
+    print(f"\n--- Cosine Similarities ---")
+    print(f"Sentence 1 'it' vs 'cat':  {_sim_it1_cat:.4f}")
+    print(f"Sentence 1 'it' vs 'road': {_sim_it1_road:.4f}")
+    print(f"Sentence 2 'it' vs 'cat':  {_sim_it2_cat:.4f}")
+    print(f"Sentence 2 'it' vs 'road': {_sim_it2_road:.4f}")
+    print(f"\nSentence 1 'it' vs Sentence 2 'it': {_sim_it1_it2:.4f}")
+
+    # Visualize the similarities
+    _fig, _ax = plt.subplots(figsize=(6, 4))
+
+    _labels = ["'it' (tired)\nvs 'cat'", "'it' (tired)\nvs 'road'",
+               "'it' (wide)\nvs 'cat'", "'it' (wide)\nvs 'road'"]
+    _sims = [_sim_it1_cat, _sim_it1_road, _sim_it2_cat, _sim_it2_road]
+    _colors = ["steelblue", "lightgray", "lightgray", "orange"]
+
+    _bars = _ax.bar(
+        _labels,
+        _sims,
+        color=_colors,
+        edgecolor="k",
+    )
+    _ax.set_ylabel("Cosine Similarity")
+    _ax.set_title("Contextual Embeddings: Which Noun Does 'it' Refer To?")
+    _ax.set_ylim(0, 1)
+
+    for _bar, _sim in zip(_bars, _sims):
+        _ax.text(
+            _bar.get_x() + _bar.get_width() / 2,
+            _bar.get_height() + 0.02,
+            f"{_sim:.3f}",
+            ha="center",
+            fontsize=10,
+        )
+
+    plt.tight_layout()
+    plt.show()
+    return
 
 
 @app.cell
